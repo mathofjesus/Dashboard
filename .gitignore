@@ -1,0 +1,6 @@
+data/cache/
+data/processed/
+*.o
+dashboard
+tests/test_bin
+.superpowers/
