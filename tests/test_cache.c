@@ -237,6 +237,93 @@ static void testa_idade(void)
              "mexer no TTL do K2 não mexeu no do K1");
 }
 
+/* Escreve bytes crus no arquivo de lado do TTL, para simular uma escrita
+ * interrompida no meio (o arquivo existe, o prazo não está inteiro
+ * dentro). cache_set_ttl() nunca produz isso, mas um disco cheio, um
+ * Energy Loss Configuration ou um cache copiado pela metade produzem. */
+static int escreve_ttl(const char *ttl_path, const char *conteudo, size_t len)
+{
+    FILE *f = fopen(ttl_path, "wb");
+    size_t k;
+
+    if (!f)
+        return -1;
+    k = fwrite(conteudo, 1, len, f);
+    fclose(f);
+    return k == len ? 0 : -1;
+}
+
+/* Um .ttl ilegível não pode virar "não expira nunca". Seria servir dado
+ * velho indefinidamente, sem erro e sem log — que é exatamente o que o TTL
+ * existe para evitar. São dois comportamentos diferentes e os dois ficam
+ * fixados aqui: */
+static void testa_ttl_ilegivel(void)
+{
+    char *p = cache_path(K1);
+    char *ttl;
+    size_t n, len = 0;
+    char *buf = NULL;
+
+    T_ASSERT(p != NULL, "caminho da chave");
+    n = strlen(p);
+    ttl = malloc(n + 8);
+    T_ASSERT(ttl != NULL, "memória para o caminho do .ttl");
+    snprintf(ttl, n + 8, "%s.ttl", p);
+    free(p);
+
+    T_ASSERT(cache_grava(K1, "abc", 3) == 0, "grava a chave");
+
+    /* 1. sem arquivo de lado: imutável, como o header promete */
+    T_ASSERT(cache_ttl(K1) == CACHE_TTL_NENHUM,
+             "AUSÊNCIA de .ttl é CACHE_TTL_NENHUM (imutável)");
+    T_ASSERT(cache_tem(K1) == 1, "e a chave vale");
+
+    /* 2. .ttl de 0 bytes: cache_set_ttl interrompido antes do fprintf */
+    T_ASSERT(escreve_ttl(ttl, "", 0) == 0, ".ttl de 0 bytes");
+    T_ASSERT(cache_ttl(K1) == CACHE_TTL_CORROMPIDO,
+             ".ttl vazio é corrompido, não imutável");
+    T_ASSERT(cache_tem(K1) == 0, ".ttl vazio expira a chave");
+
+    /* 3. .ttl com lixo no lugar do número */
+    T_ASSERT(escreve_ttl(ttl, "86400 segundos\n", 15) == 0, ".ttl não numérico");
+    T_ASSERT(cache_ttl(K1) == CACHE_TTL_CORROMPIDO,
+             "lixo no .ttl é corrompido");
+    T_ASSERT(cache_tem(K1) == 0, ".ttl não numérico expira a chave");
+
+    /* 4. número válido: a chave volta a valer */
+    T_ASSERT(escreve_ttl(ttl, "86400\n", 6) == 0, ".ttl válido");
+    T_ASSERT(cache_ttl(K1) == 86400, "86400 é lido como está");
+    T_ASSERT(cache_tem(K1) == 1, "e a chave vale de novo");
+
+    /* 5. número truncado: legível, logo é um prazo — menor, mas prazo.
+     * Não é corrupção, é um prazo que o cache_set_ttl interrupted deixou. */
+    T_ASSERT(escreve_ttl(ttl, "864", 3) == 0, ".ttl truncado para 864");
+    T_ASSERT(cache_ttl(K1) == 864, "o número que está no arquivo é o prazo");
+    T_ASSERT(cache_tem(K1) == 1, "864 s à frente ainda não venceu");
+
+    /* 6. prazo negativo escrito por fora: ninguém entendeu esse prazo, então
+     * não pode virar "imutável" */
+    T_ASSERT(escreve_ttl(ttl, "-5\n", 3) == 0, ".ttl negativo");
+    T_ASSERT(cache_ttl(K1) == CACHE_TTL_CORROMPIDO,
+             "prazo negativo em disco é corrompido");
+    T_ASSERT(cache_tem(K1) == 0, "e a chave expira");
+
+    /* 7. lixo DEPOIS do número: o fscanf para no número e ignora o resto, o
+     * que devolveria um prazo inventado a partir de um arquivo quebrado */
+    T_ASSERT(escreve_ttl(ttl, "86400\nlixo\n", 11) == 0, ".ttl com lixo no fim");
+    T_ASSERT(cache_ttl(K1) == CACHE_TTL_CORROMPIDO,
+             "lixo depois do número também é corrompido");
+    T_ASSERT(cache_tem(K1) == 0, "e a chave expira");
+
+    /* o conteúdo continua no disco e legível: expirado não é apagado */
+    T_ASSERT(cache_le(K1, &buf, &len) == 0, "conteúdo continua legível");
+    T_ASSERT(len == 3, "e com os 3 bytes de sempre");
+    free(buf);
+    T_ASSERT(access(ttl, F_OK) == 0, "o .ttl corrompido não foi apagado");
+
+    free(ttl);
+}
+
 /* ------------------------------------------------------------------ */
 /* criação do diretório                                                */
 /* ------------------------------------------------------------------ */
@@ -328,6 +415,7 @@ void test_cache(void)
     printf("testa_binario\n");             testa_binario();
     printf("testa_inexistente\n");         testa_inexistente();
     printf("testa_idade\n");               testa_idade();
+    printf("testa_ttl_ilegivel\n");        testa_ttl_ilegivel();
     printf("testa_cria_diretorio\n");      testa_cria_diretorio();
     printf("testa_chave_longa\n");         testa_chave_longa();
 

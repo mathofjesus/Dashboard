@@ -186,15 +186,21 @@ static int hex4(const char *p, unsigned *out)
     return 0;
 }
 
-/* Escreve cp (ponto de código) em UTF-8 e devolve o próximo byte livre. */
-static unsigned char *escreve_utf8(unsigned char *d, unsigned cp)
+/* Escreve cp (ponto de código) em UTF-8 e devolve quantos bytes ocupa. Com
+ * d == NULL só conta — é o que permite medir a string antes de reservar
+ * espaço para ela, sem ter duas versões da mesma regra de tamanho. */
+static size_t escreve_utf8(unsigned char *d, unsigned cp)
 {
-    if (cp < 0x80) {
+    size_t n = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+
+    if (!d)
+        return n;
+    if (n == 1) {
         *d++ = (unsigned char)cp;
-    } else if (cp < 0x800) {
+    } else if (n == 2) {
         *d++ = (unsigned char)(0xC0 | (cp >> 6));
         *d++ = (unsigned char)(0x80 | (cp & 0x3F));
-    } else if (cp < 0x10000) {
+    } else if (n == 3) {
         *d++ = (unsigned char)(0xE0 | (cp >> 12));
         *d++ = (unsigned char)(0x80 | ((cp >> 6) & 0x3F));
         *d++ = (unsigned char)(0x80 | (cp & 0x3F));
@@ -204,7 +210,7 @@ static unsigned char *escreve_utf8(unsigned char *d, unsigned cp)
         *d++ = (unsigned char)(0x80 | ((cp >> 6) & 0x3F));
         *d++ = (unsigned char)(0x80 | (cp & 0x3F));
     }
-    return d;
+    return n;
 }
 
 /* ------------------------------------------------------------------ */
@@ -214,57 +220,56 @@ static unsigned char *escreve_utf8(unsigned char *d, unsigned cp)
 static json_val *parse_valor(arena *ar, const char **pp, const char *fim,
                              int prof);
 
-/* Lê a string que começa em p (p precisa estar na aspa de abertura) e
- * escreve o texto decodificado em *saida. O maior tamanho possível é o que
- * resta até o fim (escape nunca amplia), então a reserva é exata no caso
- * normal, sem string com escape. */
-static const char *parse_str(arena *ar, const char *p, const char *fim,
-                             char **saida)
+/* Lê a string que começa em p (p na aspa de abertura) e devolve o tamanho
+ * do texto decodificado, sem o '\0'. Com d != NULL o texto é escrito em d;
+ * com d == NULL nada é escrito e o tamanho é só contado — primeira passada
+ * de parse_str, que precisa do número antes de reservar.
+ *
+ * O caminho é o mesmo nas duas passadas (mesmo decodificador, mesmas
+ * regras), então medir e escrever não podem divergir: se divergissem, a
+ * segunda passada escreveria fora do buffer reservado. O fim da string vai
+ * sempre para *fim_str; devolve (size_t)-1 se a string for inválida, e nesse
+ * caso *fim_str não vale. */
+static size_t decodifica_str(const char *p, const char *fim,
+                             unsigned char *d, const char **fim_str)
 {
-    unsigned char *buf;
-    unsigned char *d;
-    size_t sobra;
+    size_t n = 0;
 
-    if (p >= fim || *p != '"')
-        return NULL;
-    p++;
-    sobra = (size_t)(fim - p) + 1;
-    buf = arena_aloca(ar, sobra);
-    if (!buf)
-        return NULL;
-    d = buf;
-
+    p++;                              /* pula a aspa de abertura */
     while (p < fim) {
         unsigned char c = (unsigned char)*p;
         if (c == '"') {
-            *d = '\0';
-            *saida = (char *)buf;
-            return p + 1;
+            if (d)
+                d[n] = '\0';
+            *fim_str = p + 1;
+            return n;
         }
         if (c < 0x20)
-            return NULL;              /* controle cru não é JSON válido */
+            return (size_t)-1;        /* controle cru não é JSON válido */
         if (c != '\\') {
-            *d++ = c;
+            if (d)
+                d[n] = c;
+            n++;
             p++;
             continue;
         }
         p++;
         if (p >= fim)
-            return NULL;              /* barra invertida no fim */
+            return (size_t)-1;        /* barra invertida no fim */
         switch (*p) {
-        case '"':  *d++ = '"';  p++; break;
-        case '\\': *d++ = '\\'; p++; break;
-        case '/':  *d++ = '/';  p++; break;
-        case 'b':  *d++ = '\b'; p++; break;
-        case 'f':  *d++ = '\f'; p++; break;
-        case 'n':  *d++ = '\n'; p++; break;
-        case 'r':  *d++ = '\r'; p++; break;
-        case 't':  *d++ = '\t'; p++; break;
+        case '"':  if (d) d[n] = '"';  n++; p++; break;
+        case '\\': if (d) d[n] = '\\'; n++; p++; break;
+        case '/':  if (d) d[n] = '/';  n++; p++; break;
+        case 'b':  if (d) d[n] = '\b'; n++; p++; break;
+        case 'f':  if (d) d[n] = '\f'; n++; p++; break;
+        case 'n':  if (d) d[n] = '\n'; n++; p++; break;
+        case 'r':  if (d) d[n] = '\r'; n++; p++; break;
+        case 't':  if (d) d[n] = '\t'; n++; p++; break;
         case 'u': {
             unsigned cp;
             p++;
             if (fim - p < 4 || hex4(p, &cp) != 0)
-                return NULL;
+                return (size_t)-1;
             p += 4;
             if (cp >= 0xD800 && cp <= 0xDBFF) {
                 /* par substituto: o par baixo tem de vir logo em seguida */
@@ -279,14 +284,48 @@ static const char *parse_str(arena *ar, const char *p, const char *fim,
             } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
                 cp = 0xFFFDu;         /* substituto baixo sozinho idem */
             }
-            d = escreve_utf8(d, cp);
+            n += escreve_utf8(d ? d + n : NULL, cp);
             break;
         }
         default:
-            return NULL;              /* escape desconhecido */
+            return (size_t)-1;        /* escape desconhecido */
         }
     }
-    return NULL;                      /* string sem aspa de fechamento */
+    return (size_t)-1;                /* string sem aspa de fechamento */
+}
+
+/* Lê a string que começa em p (p precisa estar na aspa de abertura) e
+ * escreve o texto decodificado em *saida, devolvendo o ponteiro depois da
+ * string no documento.
+ *
+ * Duas passadas: a primeira só conta o tamanho decodificado e a segunda
+ * escreve. Reservar "o que resta do documento" (a versão de uma passada,
+ * que só funciona porque escape nunca amplia) custava o resto do documento
+ * POR CADA STRING, e cada reserva dessas é maior que um bloco da arena, então
+ * ia para o malloc. No arquivo real do IBGE (2,47 MB, ~72 mil strings) isso
+ * dá > 300 GB de espaço virtual pedido, e a ingestão morria devolvendo NULL
+ * sem dizer por quê. */
+static const char *parse_str(arena *ar, const char *p, const char *fim,
+                             char **saida)
+{
+    const char *inicio = p;
+    const char *fim_str = NULL;
+    size_t n, n2;
+    unsigned char *buf;
+
+    if (p >= fim || *p != '"')
+        return NULL;
+    n = decodifica_str(p, fim, NULL, &fim_str);
+    if (n == (size_t)-1)
+        return NULL;
+    buf = arena_aloca(ar, n + 1);
+    if (!buf)
+        return NULL;
+    n2 = decodifica_str(inicio, fim, buf, &fim_str);
+    if (n2 != n)                      /* impossível: é o mesmo decodificador */
+        return NULL;
+    *saida = (char *)buf;
+    return fim_str;
 }
 
 /* Número JSON estrito: -?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?

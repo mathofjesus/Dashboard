@@ -160,8 +160,12 @@ int cache_tem(const char *chave)
         if (idade < 0)
             idade = 0;                  /* relógio andou para trás */
         ttl = cache_ttl(chave);
-        /* TTL -1 (imutável) nunca expira; com TTL, só vale dentro do prazo */
-        tem = (ttl == CACHE_TTL_NENHUM || idade <= ttl);
+        /* TTL -1 (imutável) nunca expira; com TTL, só vale dentro do prazo.
+         * TTL corrompido (-2) não é imutável: um .ttl ilegível faria a chave
+         * valer para sempre, então ela é tratada como expirada e a ingestão
+         * baixa de novo. */
+        tem = (ttl == CACHE_TTL_NENHUM ||
+               (ttl >= 0 && idade <= ttl));
     }
     free(path);
     return tem;
@@ -272,12 +276,21 @@ int cache_idade_segundos(const char *chave)
     return idade;
 }
 
+/* O .ttl tem que ser um inteiro e mais nada (o cache_set_ttl escreve "%d\n").
+ * Lixo depois do número também é arquivo quebrado: o fscanf pararia no número
+ * e devolveria um prazo inventado, de um arquivo que ninguém escreveu
+ * inteiro. */
+static int ttl_legivel(int c)
+{
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
 int cache_ttl(const char *chave)
 {
     char *path = cache_path(chave);
     char *ttl_path;
     FILE *f;
-    int ttl = CACHE_TTL_NENHUM;
+    int ttl = CACHE_TTL_NENHUM, lido, c;
 
     if (!path)
         return CACHE_TTL_NENHUM;
@@ -288,9 +301,19 @@ int cache_ttl(const char *chave)
     f = fopen(ttl_path, "r");
     free(ttl_path);
     if (!f)
-        return CACHE_TTL_NENHUM;        /* sem arquivo de lado: imutável */
-    if (fscanf(f, "%d", &ttl) != 1 || ttl < 0)
-        ttl = CACHE_TTL_NENHUM;
+        return CACHE_TTL_NENHUM;        /* sem arquivo de lado: imutável,
+                                         * que é o padrão do contrato */
+    lido = fscanf(f, "%d", &ttl);
+    if (lido != 1 || ttl < 0) {
+        ttl = CACHE_TTL_CORROMPIDO;
+    } else {
+        while ((c = fgetc(f)) != EOF) {
+            if (!ttl_legivel(c)) {
+                ttl = CACHE_TTL_CORROMPIDO;
+                break;
+            }
+        }
+    }
     fclose(f);
     return ttl;
 }

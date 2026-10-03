@@ -37,6 +37,7 @@ static void testa_get_ibge(void)
     int rc;
 
     rc = http_get(URL_IBGE, &body, &len);
+    printf("      (curl devolveu %d)\n", rc);
     T_ASSERT(rc == 0, "http_get da URL do IBGE devolve 0 (veja rc acima)");
     T_ASSERT(body != NULL, "corpo não é NULL");
     T_ASSERT(len > 2000000, "o corpo tem mais de 2.000.000 bytes");
@@ -56,8 +57,11 @@ static void testa_get_ibge_parseado(void)
     json_val *v;
     size_t n, i;
     int com_acentos = 0;
+    int rc;
 
-    T_ASSERT(http_get(URL_IBGE, &body, &len) == 0, "segundo download do IBGE");
+    rc = http_get(URL_IBGE, &body, &len);
+    printf("      (curl devolveu %d)\n", rc);
+    T_ASSERT(rc == 0, "segundo download do IBGE");
     v = json_parse(body, len);
     T_ASSERT(v != NULL, "o JSON de 2,4 MB do IBGE parseia");
     T_ASSERT(json_tipo_de(v) == JSON_ARR, "a raiz é um array");
@@ -145,6 +149,40 @@ static void testa_url_com_metacaracteres(void)
     T_ASSERT(len == 0, "len fica 0");
 }
 
+/* Dentro de aspas simples o shell não expande nada — a ÚNICA coisa que
+ * precisa de escape é a própria aspa simples. Sem o escape em monta_comando
+ * a URL vira:
+ *
+ *     curl ... -- 'https://exemplo.invalid/a';touch ARQUIVO;echo 'ok'
+ *
+ * (é a aspa final que monta_comando sempre acrescenta que fecha o "'ok'" do
+ * fim) e o shell roda três comandos: o curl falha porque o .invalid não
+ * resolve, o touch CRIA O ARQUIVO e o echo sai com 0 — então http_get
+ * devolveria 0 ("deu certo") com corpo vazio.
+ *
+ * É o ramo mais crítico do arquivo e ele precisa de teste próprio: os
+ * outros metacaracteres (&, ;, $(), crase) não dependem dele, então o teste
+ * deles continuaria verde com o escape removido. */
+static void testa_url_com_aspa_simples(void)
+{
+    char *body = (char *)0x1;
+    size_t len = 12345;
+    int rc;
+
+    remove("/tmp/opencode/injetado_pelo_teste");
+    rc = http_get("https://exemplo.invalid/a';touch "
+                  "/tmp/opencode/injetado_pelo_teste;echo 'ok",
+                  &body, &len);
+
+    T_ASSERT(rc != 0,
+             "URL com aspa simples não pode virar três comandos (falha sem o escape)");
+    T_ASSERT(access("/tmp/opencode/injetado_pelo_teste", F_OK) != 0,
+             "o ';' depois da aspa simples não virou comando do shell");
+    T_ASSERT(body == NULL, "corpo fica NULL");
+    T_ASSERT(len == 0, "len fica 0");
+    printf("      (curl devolveu %d)\n", rc);
+}
+
 static void testa_argumentos_invalidos(void)
 {
     char *body = (char *)0x1;
@@ -185,5 +223,6 @@ void test_http_client(void)
     printf("testa_dominio_inexistente\n");      testa_dominio_inexistente();
     printf("testa_url_com_ampersand\n");        testa_url_com_ampersand();
     printf("testa_url_com_metacaracteres\n");   testa_url_com_metacaracteres();
+    printf("testa_url_com_aspa_simples\n");     testa_url_com_aspa_simples();
     printf("testa_argumentos_invalidos\n");     testa_argumentos_invalidos();
 }

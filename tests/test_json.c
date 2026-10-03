@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 
 #include "../src/json.h"
 
@@ -405,6 +406,168 @@ static void testa_objeto_com_muitas_chaves(void)
     free(buf);
 }
 
+/* ------------------------------------------------------------------ */
+/* consumo de memória com documento cheio de strings                   */
+/* ------------------------------------------------------------------ */
+
+/* Teto de espaço virtual do processo durante o parse deste teste. O consumo
+ * certo do documento abaixo é da ordem de 15 MB; com a reserva "o que resta
+ * do documento" por string são dezenas de GB. 100 MB sobra folgado para o
+ * primeiro e derruba o segundo — inclusive dentro de um MemoryMax= de
+ * systemd, que é onde isso apareceria em produção. */
+#define TESTE_TETO_AS (100u * 1024u * 1024u)
+
+/* O ASAN reserva terabytes de espaço virtual só para a sombra, então
+ * RLIMIT_AS é incompatível com ele: o teto vale para a execução normal. */
+#if defined(__SANITIZE_ADDRESS__)
+#  define TESTE_COM_ASAN 1
+#elif defined(__has_feature)
+#  if __has_feature(address_sanitizer)
+#    define TESTE_COM_ASAN 1
+#  endif
+#endif
+
+/* ru_maxrss é o recorde do processo inteiro, então o número impresso é o
+ * pico desde que o processo começou — por isso ele sai antes e depois. */
+#if !defined(TESTE_COM_ASAN)
+static size_t pico_rss_kb(void)
+{
+    struct rusage ru;
+
+    if (getrusage(RUSAGE_SELF, &ru) != 0)
+        return 0;
+    return (size_t)ru.ru_maxrss;        /* KB no Linux */
+}
+
+/* Espaço virtual (VmPeak, VmSize) e RSS (VmHWM) em KB, de
+ * /proc/self/status. VmPeak e VmHWM são recorde do processo inteiro, então o
+ * "antes" inclui o que os testes anteriores já fizeram; o VmSize é o que
+ * está reservado AGORA, e é ele que mostra a amplificação: o defeito desta
+ * tarefa aloca o "resto do documento" para cada string e mal escreve dentro
+ * dos blocos, então o espaço pedido cresce muito mais que o RSS. */
+static size_t memoria_kb(const char *campo)
+{
+    char linha[256];
+    FILE *f = fopen("/proc/self/status", "r");
+    size_t n = strlen(campo), v = 0;
+
+    if (!f)
+        return 0;
+    while (fgets(linha, sizeof linha, f))
+        if (strncmp(linha, campo, n) == 0) {
+            v = (size_t)strtoul(linha + n, NULL, 10);
+            break;
+        }
+    fclose(f);
+    return v;
+}
+
+static void imprime_memoria(const char *rotulo)
+{
+    printf("      %s VmSize: %zu kB   VmPeak: %zu kB   VmHWM: %zu kB\n", rotulo,
+           memoria_kb("VmSize:"), memoria_kb("VmPeak:"), memoria_kb("VmHWM:"));
+}
+#endif /* !TESTE_COM_ASAN */
+
+/* Documento grande e cheio de string — é a forma da resposta do IBGE (2,4
+ * MB, 5.571 objetos, strings dentro de strings) e o que a Tarefa 5 vai
+ * parsear de verdade. O ponto cego dos testes anteriores é que eles só
+ * tinham números: string é o que dispara a reserva grande.
+ *
+ * O teto de 100 MB é o teste: sem ele, o consumo errado passa em qualquer
+ * máquina com overcommit. */
+static void testa_documento_grande_com_strings(void)
+{
+#if defined(TESTE_COM_ASAN)
+    printf("      (pulado sob ASAN: RLIMIT_AS não cabe com a sombra de memória)\n");
+#else
+    const int N = 5571;                 /* o mesmo tamanho da lista do IBGE */
+    const size_t cap = 8u * 1024u * 1024u;
+    char *doc;
+    size_t pos = 0, pico_antes, pico_depois, n;
+    struct rlimit original, apertado;
+    json_val *v;
+    int i;
+
+    doc = malloc(cap);
+    T_ASSERT(doc != NULL, "sem memória para montar o documento de 2,4 MB");
+    doc[pos++] = '[';
+    for (i = 0; i < N; i++) {
+        int k = snprintf(doc + pos, cap - pos,
+                         "%s{\"id\":%d,\"nome\":\"Município %04d com Nome Bem "
+                         "Comprido Para o Teste de Memória do Parser JSON em "
+                         "Português do Brasil\",\"microrregiao\":{\"id\":%d,"
+                         "\"nome\":\"Cacoal\",\"mesorregiao\":{\"id\":%d,\"nome\":"
+                         "\"Alto Juruá\",\"UF\":{\"id\":11,\"sigla\":\"RO\",\"nome\":"
+                         "\"Rondônia\"},\"regiao\":{\"id\":1,\"sigla\":\"N\",\"nome\":"
+                         "\"Norte\"}}},\"uf\":{\"id\":11,\"sigla\":\"RO\",\"nome\":"
+                         "\"Rondônia\"},\"regiao\":{\"id\":1,\"sigla\":\"N\","
+                         "\"nome\":\"Norte\"}}",
+                         i ? "," : "", 1100000 + i, i, 11000 + i, 1100 + i);
+        T_ASSERT(k > 0 && (size_t)k < cap - pos, "o documento coube no buffer");
+        pos += (size_t)k;
+    }
+    doc[pos++] = ']';
+    doc[pos] = '\0';
+    T_ASSERT(pos > 2000000, "o documento tem o tamanho do dado real do IBGE");
+
+    T_ASSERT(getrlimit(RLIMIT_AS, &original) == 0, "getrlimit antes do parse");
+    apertado = original;
+    apertado.rlim_cur = (rlim_t)TESTE_TETO_AS;
+    if (apertado.rlim_cur > original.rlim_max)
+        apertado.rlim_cur = original.rlim_max;
+    T_ASSERT(setrlimit(RLIMIT_AS, &apertado) == 0, "setrlimit do teto");
+
+    pico_antes = pico_rss_kb();
+    imprime_memoria("antes: ");
+    v = json_parse(doc, pos);
+    pico_depois = pico_rss_kb();
+
+    /* o limite volta antes de qualquer assert: uma falha não pode deixar o
+     * resto da suíte rodando com 100 MB */
+    T_ASSERT(setrlimit(RLIMIT_AS, &original) == 0, "restaura o limite de memória");
+
+    printf("      (%zu bytes, %d objetos; teto de %u MB)\n",
+           pos, N, (unsigned)(apertado.rlim_cur / (1024u * 1024u)));
+
+    T_ASSERT(v != NULL,
+             "2,4 MB cheios de string parseiam dentro de 100 MB (falha quando cada string reserva o resto do documento)");
+
+    /* impresso com a árvore ainda viva: o VmSize é o espaço realmente
+     * reservado pelo parse, não o que sobrou depois de json_free() */
+    imprime_memoria("depois: ");
+    printf("      (pico RSS do processo: %zu KB -> %zu KB)\n",
+           pico_antes, pico_depois);
+    /* e o teto é conferido em número, não só pelo desfecho do malloc: 64 MB
+     * é folgado para o consumo certo (~25 MB medidos) e muito abaixo do
+     * consumo com a reserva por string (foi > 300 GB virtual no arquivo real
+     * do IBGE). Em sistema sem /proc o valor vem 0 e a asserção passa. */
+    T_ASSERT(memoria_kb("VmSize:") < 64u * 1024u,
+             "o parse não pode pedir mais de 64 MB de espaço virtual para 2,4 MB de documento");
+
+    /* e não basta devolver não-NULL: o conteúdo tem de estar todo */
+    n = json_arr_len(v);
+    T_ASSERT(n == (size_t)N, "os 5.571 objetos estão lá");
+    T_ASSERT(json_num(json_obj_get(json_arr_get(v, 0), "id")) == 1100000.0,
+             "id do primeiro objeto");
+    T_ASSERT(strcmp(json_str(json_obj_get(json_arr_get(v, N - 1), "nome")),
+                    "Município 5570 com Nome Bem Comprido Para o Teste de Memória "
+                    "do Parser JSON em Português do Brasil") == 0,
+             "nome do último objeto");
+    T_ASSERT(strcmp(json_str(json_obj_get(json_obj_get(json_arr_get(v, 0), "uf"),
+                                          "nome")),
+                    "Rondônia") == 0,
+             "string aninhada dentro de objeto");
+    T_ASSERT(strcmp(json_str(json_obj_get(json_obj_get(json_obj_get(
+                      json_arr_get(v, 0), "microrregiao"), "mesorregiao"), "nome")),
+                    "Alto Juruá") == 0,
+             "string em três níveis de aninhamento");
+
+    json_free(v);
+    free(doc);
+#endif
+}
+
 /* Muitos ciclos de parse/free: sem valgrind isto pega no mínimo uma falha de
  * segmentação, um double free e qualquer crescimento óbvio de tempo. */
 static void testa_ida_e_volta(void)
@@ -443,5 +606,7 @@ void test_json(void)
     printf("testa_entrada_grande_sem_terminador\n");
     testa_entrada_grande_sem_terminador();
     printf("testa_objeto_com_muitas_chaves\n");  testa_objeto_com_muitas_chaves();
+    printf("testa_documento_grande_com_strings\n");
+    testa_documento_grande_com_strings();
     printf("testa_ida_e_volta\n");              testa_ida_e_volta();
 }
