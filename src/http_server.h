@@ -53,10 +53,15 @@ int http_serve_range(const char *root, const char *req_path,
 /* Escreve n bytes, repetindo até acabar. Devolve 0 ou -1. */
 int http_send_all(int fd, const void *buf, size_t n);
 
-/* Faz o loop listen/accept/fork. Só retorna em erro fatal. */
+/* Faz o laço listen/accept/fork. Só retorna em erro fatal. */
 int http_listen_and_serve(int porta, const char *web_root);
 
 /* Atende uma requisição em fd e fecha a conexão. */
 void http_handle_client(int fd, const char *web_root);
+
+/* Segundos que http_handle_client espera pela requisição inteira antes de
+ * desistir da conexão (SO_RCVTIMEO). Os testes diminuem esse valor para não
+ * demorarem; em produção o padrão é 5. */
+extern int http_read_timeout_s;
 
 #endif /* HTTP_SERVER_H */

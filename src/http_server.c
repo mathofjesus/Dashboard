@@ -1,9 +1,11 @@
-/* http_server.c -- servidor HTTP estatico minimo: parsing, arquivos
- * estaticos, Range e gzip. Fork por conexao (ver http_listen_and_serve).
+/* http_server.c -- servidor HTTP estático mínimo: parsing de requisição,
+ * arquivos estáticos, Range e gzip. Fork por conexão (veja
+ * http_listen_and_serve).
  *
- * Cabecalho padrao POSIX precisa vir antes de qualquer outro para os
- * (feature test macros) da glibc.
+ * Os macros de feature test precisam vir antes de qualquer outro include.
+ * _XOPEN_SOURCE 700 já traz o POSIX 2008 e é o que declara realpath().
  */
+#define _XOPEN_SOURCE 700
 #define _POSIX_C_SOURCE 200809L
 
 #include "http_server.h"
@@ -16,20 +18,22 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <signal.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
 #include <zlib.h>
 
 /* ------------------------------------------------------------------ */
-/* utilitarios                                                         */
+/* utilitários                                                         */
 /* ------------------------------------------------------------------ */
 
+/* Copia n bytes de s para uma nova string terminada em '\0'. */
 static char *dupn(const char *s, size_t n)
 {
     char *p = malloc(n + 1);
@@ -40,7 +44,7 @@ static char *dupn(const char *s, size_t n)
     return p;
 }
 
-/* Compara s[0..n) com b sem diferenciar maiusculas/minusculas. */
+/* Compara s[0..n) com b sem diferenciar maiúsculas de minúsculas. */
 static int ci_equal(const char *s, size_t n, const char *b)
 {
     size_t i;
@@ -54,7 +58,7 @@ static int ci_equal(const char *s, size_t n, const char *b)
 }
 
 /* ------------------------------------------------------------------ */
-/* parsing da requisicao                                               */
+/* parsing da requisição                                               */
 /* ------------------------------------------------------------------ */
 
 /* Formato aceito:
@@ -62,9 +66,10 @@ static int ci_equal(const char *s, size_t n, const char *b)
  *     Nome: valor CRLF
  *     ...
  *     CRLF
- * Devolve 0, ou -1 se raw/out for NULL ou a linha de requisicao nao for
- * entendida. method/path/query sao copias alocadas; query e "" quando nao
- * ha query string; range_header e accept_encoding sao NULL quando ausentes.
+ *
+ * Devolve 0, ou -1 se raw/out for NULL ou a linha de requisição não for
+ * entendida. method/path/query são cópias alocadas; query é "" quando não
+ * há query string; range_header e accept_encoding são NULL quando ausentes.
  */
 int http_parse_request(const char *raw, http_request *out)
 {
@@ -78,7 +83,7 @@ int http_parse_request(const char *raw, http_request *out)
 
     memset(out, 0, sizeof *out);
 
-    /* ---- linha de requisicao ---- */
+    /* ---- linha de requisição ---- */
     linha_fim = strstr(raw, "\r\n");
     if (!linha_fim)
         return -1;
@@ -87,7 +92,7 @@ int http_parse_request(const char *raw, http_request *out)
     while (ini < linha_fim && *ini == ' ')
         ini++;
     if (ini == linha_fim)
-        return -1;                       /* linha so com espacos */
+        return -1;                       /* linha só com espaços */
 
     fim_metodo = ini;
     while (fim_metodo < linha_fim && *fim_metodo != ' ')
@@ -103,7 +108,7 @@ int http_parse_request(const char *raw, http_request *out)
     if (ini_alvo == linha_fim || *ini_alvo != '/')
         return -1;                       /* alvo fora de origin-form */
 
-    /* fim_path = fim do path (ate '?' ou espaco) */
+    /* fim_path = fim do path (até '?' ou espaço) */
     fim_path = ini_alvo + 1;
     while (fim_path < linha_fim && *fim_path != ' ' && *fim_path != '?')
         fim_path++;
@@ -122,7 +127,7 @@ int http_parse_request(const char *raw, http_request *out)
     while (p < linha_fim && *p == ' ')
         p++;
     if (p == linha_fim)
-        return -1;                       /* falta a versao */
+        return -1;                       /* falta a versão */
     if ((size_t)(linha_fim - p) < 8 || strncmp(p, "HTTP/", 5) != 0)
         return -1;
 
@@ -135,31 +140,31 @@ int http_parse_request(const char *raw, http_request *out)
         if (!out->query)
             return -1;
     } else {
-        out->query = dupn("", 0);        /* "" e nao NULL */
+        out->query = dupn("", 0);        /* "" e não NULL */
         if (!out->query)
             return -1;
     }
 
-    /* ---- cabecalhos ---- */
+    /* ---- cabeçalhos ---- */
     p = linha_fim + 2;
     for (;;) {
-        const char *doispontos, *nome, *v_ini, *v_fim, *linha_fim2;
+        const char *doispontos, *nome, *v_ini, *v_fim, *fim_da_linha;
         size_t n_nome;
 
         if (*p == '\r' && p[1] == '\n')
-            break;                       /* fim dos cabecalhos */
+            break;                       /* fim dos cabeçalhos */
         if (*p == '\0')
-            return -1;                   /* request truncado */
+            return -1;                   /* requisição truncada */
 
-        linha_fim2 = strstr(p, "\r\n");
-        if (!linha_fim2)
+        fim_da_linha = strstr(p, "\r\n");
+        if (!fim_da_linha)
             return -1;
 
         doispontos = p;
-        while (doispontos < linha_fim2 && *doispontos != ':')
+        while (doispontos < fim_da_linha && *doispontos != ':')
             doispontos++;
-        if (doispontos == linha_fim2) {
-            p = linha_fim2 + 2;          /* linha sem ':': ignora */
+        if (doispontos == fim_da_linha) {
+            p = fim_da_linha + 2;        /* linha sem ':': ignora */
             continue;
         }
 
@@ -171,7 +176,7 @@ int http_parse_request(const char *raw, http_request *out)
         n_nome = (size_t)(doispontos - nome);
 
         v_ini = doispontos + 1;
-        v_fim = linha_fim2;
+        v_fim = fim_da_linha;
         while (v_ini < v_fim && (*v_ini == ' ' || *v_ini == '\t'))
             v_ini++;
         while (v_fim > v_ini && (v_fim[-1] == ' ' || v_fim[-1] == '\t'))
@@ -187,7 +192,7 @@ int http_parse_request(const char *raw, http_request *out)
                 return -1;
         }
 
-        p = linha_fim2 + 2;
+        p = fim_da_linha + 2;
     }
 
     out->range_header = range_val;
@@ -208,6 +213,7 @@ const char *http_status_text(int status)
     case 403: return "Forbidden";
     case 404: return "Not Found";
     case 405: return "Method Not Allowed";
+    case 408: return "Request Timeout";
     case 416: return "Range Not Satisfiable";
     case 500: return "Internal Server Error";
     default:  return "Erro Desconhecido";
@@ -218,7 +224,7 @@ const char *http_status_text(int status)
 /* escrita no socket                                                   */
 /* ------------------------------------------------------------------ */
 
-/* write() pode escrever menos que n; repete ate acabar. 0 em sucesso. */
+/* write() pode escrever menos que n; repete até acabar. 0 em sucesso. */
 int http_send_all(int fd, const void *buf, size_t n)
 {
     const char *p = buf;
@@ -238,15 +244,15 @@ int http_send_all(int fd, const void *buf, size_t n)
 }
 
 /* ------------------------------------------------------------------ */
-/* arquivos estaticos                                                  */
+/* arquivos estáticos                                                  */
 /* ------------------------------------------------------------------ */
 
 #define CAMINHO_MAX 4096
 
-/* Buffer estatico para res->filename (ver contrato em http_server.h). */
+/* Buffer estático para res->filename (ver o contrato em http_server.h). */
 static char caminho_buf[CAMINHO_MAX];
 
-/* Caminho e inseguro se contem ".." ou comeca com "/". Vazio e aceito
+/* Caminho é inseguro se contém ".." ou começa com "/". Vazio é aceito
  * (vira index.html). */
 static int caminho_inseguro(const char *p)
 {
@@ -257,10 +263,35 @@ static int caminho_inseguro(const char *p)
     return strstr(p, "..") != NULL;
 }
 
+/* Monta "a/b" em dst. -1 se não couber (ou se a e b se sobrepõem). */
 static int join(char *dst, size_t cap, const char *a, const char *b)
 {
-    int n = snprintf(dst, cap, "%s/%s", a, b);
+    int n;
+    if (a == dst || b == dst)
+        return -1;
+    n = snprintf(dst, cap, "%s/%s", a, b);
     return (n < 0 || (size_t)n >= cap) ? -1 : 0;
+}
+
+/* O caminho resolvido (symlinks Follow) tem de continuar dentro de root.
+ * Devolve 1 se está dentro, 0 se escapa do root, -1 se não deu para
+ * resolver (root ou arquivo inexistente: quem decide o status é o stat,
+ * que responde 404).
+ */
+static int dentro_do_root(const char *root, const char *caminho)
+{
+    char raiz_resolvida[PATH_MAX], alvo_resolvido[PATH_MAX];
+    size_t n;
+
+    if (!realpath(root, raiz_resolvida))
+        return -1;
+    if (!realpath(caminho, alvo_resolvido))
+        return -1;
+
+    n = strlen(raiz_resolvida);
+    if (strncmp(alvo_resolvido, raiz_resolvida, n) != 0)
+        return 0;
+    return alvo_resolvido[n] == '/' || alvo_resolvido[n] == '\0';
 }
 
 /* Sempre inclui charset, como pede o contrato de http_response. */
@@ -335,6 +366,10 @@ int http_serve_static(const char *root, const http_request *req,
         res_erro(res, 404);
         return 404;
     }
+    if (dentro_do_root(root, caminho_buf) == 0) {
+        res_erro(res, 403);              /* symlink apontando para fora */
+        return 403;
+    }
     if (stat(caminho_buf, &st) != 0) {
         res_erro(res, 404);
         return 404;
@@ -343,6 +378,10 @@ int http_serve_static(const char *root, const http_request *req,
         if (join(com_index, sizeof com_index, caminho_buf, "index.html") != 0) {
             res_erro(res, 404);
             return 404;
+        }
+        if (dentro_do_root(root, com_index) == 0) {
+            res_erro(res, 403);
+            return 403;
         }
         if (stat(com_index, &st) != 0 || !S_ISREG(st.st_mode)) {
             res_erro(res, 404);
@@ -365,7 +404,7 @@ int http_serve_static(const char *root, const http_request *req,
     return 200;
 }
 
-/* Le um inteiro decimal sem sinal. -1 se nao houver digito. */
+/* Lê um inteiro decimal sem sinal. -1 se não houver dígito. */
 static int parse_dec(const char **pp, long long *out)
 {
     const char *p = *pp;
@@ -384,10 +423,11 @@ static int parse_dec(const char **pp, long long *out)
     return 0;
 }
 
-/* Enche res com uma fatia de req_path dentro de root, conforme o header
- * Range cru. Aceita "bytes=A-B", "bytes=A-" e "bytes=-N"; a fatia e clampeada
- * no tamanho real do arquivo e um offset comecando alem do EOF da 416.
- * Devolve res->status. */
+/* Enche res com uma fatia de req_path dentro de root, conforme o cabeçalho
+ * Range cru. Aceita "bytes=A-B", "bytes=A-" e "bytes=-N"; a fatia é limitada
+ * no tamanho real do arquivo e um offset começando além do EOF dá 416.
+ * Devolve res->status.
+ */
 int http_serve_range(const char *root, const char *req_path,
                      const char *range_header, http_response *res)
 {
@@ -410,6 +450,10 @@ int http_serve_range(const char *root, const char *req_path,
         res_erro(res, 404);
         return 404;
     }
+    if (dentro_do_root(root, caminho_buf) == 0) {
+        res_erro(res, 403);              /* symlink apontando para fora */
+        return 403;
+    }
     if (stat(caminho_buf, &st) != 0 || !S_ISREG(st.st_mode)) {
         res_erro(res, 404);
         return 404;
@@ -425,7 +469,7 @@ int http_serve_range(const char *root, const char *req_path,
     }
     p += 6;
 
-    if (*p == '-') {                    /* bytes=-N : suffix */
+    if (*p == '-') {                    /* bytes=-N : sufixo */
         long long n;
         p++;
         if (parse_dec(&p, &n) != 0 || n == 0) {
@@ -441,7 +485,7 @@ int http_serve_range(const char *root, const char *req_path,
         }
         p++;
         if (*p == '\0')
-            ultimo = tamanho - 1;       /* bytes=A- : ate o EOF */
+            ultimo = tamanho - 1;       /* bytes=A- : até o EOF */
         else if (parse_dec(&p, &ultimo) != 0) {
             res_erro(res, 416);
             return 416;
@@ -473,10 +517,30 @@ int http_serve_range(const char *root, const char *req_path,
 }
 
 /* ------------------------------------------------------------------ */
-/* atendimento de uma conexao                                          */
+/* atendimento de uma conexão                                          */
 /* ------------------------------------------------------------------ */
 
 #define REQUEST_MAX 8192
+
+/* Segundos que o servidor espera pela requisição inteira antes de desistir
+ * da conexão. Os testes diminuem esse valor para não demorarem. */
+int http_read_timeout_s = 5;
+
+#define LE_OK 0
+#define LE_TIMEOUT 1
+#define LE_ERRO 2
+
+/* Limita quanto tempo o read() pode ficar bloqueado. Sem isso, um cliente
+ * que abre a conexão e fica calado prende um processo filho para sempre. */
+static int arma_timeout_de_leitura(int fd)
+{
+    struct timeval tv;
+    int s = http_read_timeout_s > 0 ? http_read_timeout_s : 1;
+
+    tv.tv_sec = s;
+    tv.tv_usec = 0;
+    return setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+}
 
 /* Tipos que valem a pena comprimir. */
 static int tipo_comprimivel(const char *ct)
@@ -510,47 +574,67 @@ static int aceita_gzip(const char *aenc)
     return 0;
 }
 
-/* Le o request ate o fim dos cabecalhos. Devolve o numero de bytes, ou -1. */
-static ssize_t le_request(int fd, char *buf, size_t cap)
+/* Lê a requisição até o fim dos cabeçalhos. Devolve o número de bytes lidos
+ * e escreve em *motivo um dos LE_*: LE_OK, LE_TIMEOUT ou LE_ERRO.
+ */
+static ssize_t le_request(int fd, char *buf, size_t cap, int *motivo)
 {
     size_t n = 0;
 
     for (;;) {
         ssize_t k;
-        if (n + 1 >= cap)
-            return -1;                  /* request grande demais */
+        if (n + 1 >= cap) {
+            *motivo = LE_ERRO;          /* requisição grande demais */
+            return -1;
+        }
         k = read(fd, buf + n, cap - 1 - n);
         if (k < 0) {
             if (errno == EINTR)
                 continue;
+            *motivo = (errno == EAGAIN || errno == EWOULDBLOCK)
+                      ? LE_TIMEOUT : LE_ERRO;
             return -1;
         }
-        if (k == 0)
-            return (ssize_t)n;           /* EOF antes do fim */
+        if (k == 0) {
+            *motivo = LE_OK;            /* EOF: o chamador decide */
+            return (ssize_t)n;
+        }
         n += (size_t)k;
         buf[n] = '\0';
-        if (strstr(buf, "\r\n\r\n"))
+        if (strstr(buf, "\r\n\r\n")) {
+            *motivo = LE_OK;
             return (ssize_t)n;
+        }
     }
 }
 
-/* Cabecalho + corpo em memoria (Content-Length). Serve tanto para o corpo
- * normal quanto para o comprimido: nos dois casos o corpo inteiro esta em
- * memoria, entao o tamanho e conhecido. so_cabecalho = 1 e o caso HEAD:
- * mandamos os cabecalhos (com Content-Length real) e nenhum corpo. */
+/* Cabeçalho + corpo em memória (Content-Length). Serve tanto para o corpo
+ * normal quanto para o comprimido: nos dois casos o corpo inteiro está em
+ * memória, então o tamanho é conhecido. so_cabecalho = 1 é o caso HEAD:
+ * mandamos os cabeçalhos (com Content-Length real) e nenhum corpo.
+ */
 static void envia_resposta(int fd, http_response *res, const char *extra,
                            int so_cabecalho)
 {
     char cab[1024];
-    int n = snprintf(cab, sizeof cab,
-                     "HTTP/1.1 %d %s\r\n"
-                     "Content-Type: %s\r\n"
-                     "Content-Length: %lld\r\n"
-                     "%s"
-                     "Connection: close\r\n"
-                     "\r\n",
-                     res->status, http_status_text(res->status),
-                     res->content_type, res->length, extra);
+    int n;
+
+    /* defence in depth: um length > 0 sem body aqui significaria anunciar
+     * bytes que não existem (foi o defeito C1). O log vai para o stderr do
+     * servidor, herdado pelo filho. */
+    if (res->length > 0 && !res->body)
+        fprintf(stderr, "ERRO interno: %lld bytes anunciados sem corpo em "
+                        "resposta %d\n", res->length, res->status);
+
+    n = snprintf(cab, sizeof cab,
+                 "HTTP/1.1 %d %s\r\n"
+                 "Content-Type: %s\r\n"
+                 "Content-Length: %lld\r\n"
+                 "%s"
+                 "Connection: close\r\n"
+                 "\r\n",
+                 res->status, http_status_text(res->status),
+                 res->content_type, res->length, extra);
     if (n < 0 || (size_t)n >= sizeof cab)
         return;
     if (http_send_all(fd, cab, (size_t)n) != 0)
@@ -561,7 +645,7 @@ static void envia_resposta(int fd, http_response *res, const char *extra,
         http_send_all(fd, res->body, (size_t)res->length);
 }
 
-/* gzip em memoria. Devolve o buffer (malloc) e o tamanho, ou NULL. */
+/* gzip em memória. Devolve o buffer (malloc) e o tamanho, ou NULL. */
 static unsigned char *gzip_mem(const unsigned char *in, size_t n,
                                size_t *out_n)
 {
@@ -591,7 +675,7 @@ static unsigned char *gzip_mem(const unsigned char *in, size_t n,
     return out;
 }
 
-/* Le length bytes a partir de offset. Devolve buffer malloc, ou NULL. */
+/* Lê length bytes a partir de offset. Devolve buffer malloc, ou NULL. */
 static char *le_arquivo(const char *filename, long long offset,
                         long long length, size_t *out_n)
 {
@@ -630,12 +714,18 @@ void http_handle_client(int fd, const char *web_root)
     char *corpo = NULL;
     size_t n_corpo = 0;
     ssize_t n;
+    int motivo = LE_ERRO;
     int so_cabecalho = 0;
 
     extra[0] = '\0';
+    arma_timeout_de_leitura(fd);
 
-    n = le_request(fd, buf, sizeof buf);
-    if (n <= 0 || http_parse_request(buf, &req) != 0) {
+    n = le_request(fd, buf, sizeof buf, &motivo);
+    if (n <= 0) {
+        res_erro(&res, motivo == LE_TIMEOUT ? 408 : 400);
+        goto envia;
+    }
+    if (http_parse_request(buf, &req) != 0) {
         res_erro(&res, 400);
         goto envia;
     }
@@ -645,11 +735,17 @@ void http_handle_client(int fd, const char *web_root)
     }
     so_cabecalho = strcmp(req.method, "HEAD") == 0;
 
-    /* O status volta em res.status mesmo quando e erro (403/404/416). */
+    /* O status volta em res.status mesmo quando é erro (403/404/416). */
     if (req.range_header)
         (void)http_serve_range(web_root, req.path, req.range_header, &res);
     else
         (void)http_serve_static(web_root, &req, &res);
+
+    /* 200 e 206 seguem o mesmo caminho: o corpo da fatia é lido do disco
+     * igual ao do arquivo inteiro. Pular essa leitura no 206 fazia a
+     * resposta anunciar Content-Length e não mandar nenhum byte. */
+    if (res.status != 200 && res.status != 206)
+        goto envia;
 
     if (res.status == 206) {
         struct stat st;
@@ -660,12 +756,9 @@ void http_handle_client(int fd, const char *web_root)
                  "Content-Range: bytes %lld-%lld/%lld\r\n"
                  "Accept-Ranges: bytes\r\n",
                  res.offset, res.offset + res.length - 1, total);
-        goto envia;
+    } else {
+        snprintf(extra, sizeof extra, "Accept-Ranges: bytes\r\n");
     }
-    if (res.status != 200 || !res.filename)
-        goto envia;
-
-    snprintf(extra, sizeof extra, "Accept-Ranges: bytes\r\n");
 
     corpo = le_arquivo(res.filename, res.offset, res.length, &n_corpo);
     if (!corpo) {
@@ -676,8 +769,9 @@ void http_handle_client(int fd, const char *web_root)
     res.body = corpo;
     res.length = (long long)n_corpo;
 
-    if (aceita_gzip(req.accept_encoding) && n_corpo >= 512 &&
-        tipo_comprimivel(res.content_type)) {
+    /* gzip só na resposta inteira: uma fatia tem de sair byte a byte. */
+    if (res.status == 200 && aceita_gzip(req.accept_encoding) &&
+        n_corpo >= 512 && tipo_comprimivel(res.content_type)) {
         unsigned char *gz = gzip_mem((const unsigned char *)corpo, n_corpo,
                                      &n_corpo);
         if (gz) {
@@ -698,10 +792,10 @@ envia:
 }
 
 /* ------------------------------------------------------------------ */
-/* loop listen/accept/fork                                             */
+/* laço listen/accept/fork                                             */
 /* ------------------------------------------------------------------ */
 
-/* Recolhe todos os filhos que ja terminaram. */
+/* Recolhe todos os filhos que já terminaram. */
 static void recolhe_filhos(void)
 {
     while (waitpid(-1, NULL, WNOHANG) > 0)
@@ -716,9 +810,10 @@ static void recycle_zumbis(int sig)
     (void)sig;
 }
 
-/* sigaction e nao signal(): neste sistema signal() tem semantica SysV e
- * volta a SIG_DFL depois do primeiro disparo, entao so o primeiro SIGCHLD
- * seria tratado e os filhos ficariam zumbis. */
+/* sigaction e não signal(): neste sistema signal() tem semântica SysV e
+ * volta a SIG_DFL depois do primeiro disparo, então só o primeiro SIGCHLD
+ * seria tratado e os filhos ficariam zumbis.
+ */
 static void instala_tratadores(void)
 {
     struct sigaction sa;
@@ -726,7 +821,7 @@ static void instala_tratadores(void)
     memset(&sa, 0, sizeof sa);
     sa.sa_handler = recycle_zumbis;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;   /* nao canse no stop/fork */
+    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;   /* não canse em stop/fork */
     sigaction(SIGCHLD, &sa, NULL);
 
     memset(&sa, 0, sizeof sa);
@@ -749,7 +844,9 @@ int http_listen_and_serve(int porta, const char *web_root)
 
     memset(&addr, 0, sizeof addr);
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    /* Só loopback: este servidor não tem autenticação, então escutar em
+     * todas as interfaces o exporia para a rede local inteira. */
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons((unsigned short)porta);
 
     if (bind(srv, (struct sockaddr *)&addr, sizeof addr) != 0) {
@@ -769,7 +866,7 @@ int http_listen_and_serve(int porta, const char *web_root)
         int cli;
         pid_t pid;
 
-        recolhe_filhos();           /* cunha: nao confia so no sinal */
+        recolhe_filhos();           /* rede de segurança: não confia só no sinal */
         cli = accept(srv, NULL, NULL);
         if (cli < 0) {
             if (errno == EINTR)
@@ -780,12 +877,12 @@ int http_listen_and_serve(int porta, const char *web_root)
         pid = fork();
         if (pid == 0) {
             close(srv);
-            http_handle_client(cli, web_root);  /* uma requisicao e sai */
+            http_handle_client(cli, web_root);  /* uma requisição e sai */
             _exit(0);
         }
         if (pid < 0)
             perror("fork");
-        close(cli);                     /* o pai nao fala com o cliente */
+        close(cli);                     /* o pai não fala com o cliente */
     }
 
     close(srv);

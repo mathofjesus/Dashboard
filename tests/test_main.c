@@ -1,8 +1,11 @@
-/* tests/test_main.c -- runner de testes. Uma funcao por suite; para adicionar
- * uma suite nova: declare o prototipo aqui, chame-a em main() e acrescente o
- * .c da suite em TEST_SRC no Makefile.
+/* tests/test_main.c -- runner de testes do dashboard.
  *
- * Nao usamos assert() da biblioteca padrao porque ele some com NDEBUG.
+ * Uma função por suíte. Para adicionar uma suíte nova (por exemplo
+ * test_http_client na Tarefa 2): declare o protótipo abaixo, chame a função
+ * em main() e acrescente o .c da suíte em TEST_SRC no Makefile.
+ *
+ * Não usamos assert() da biblioteca padrão porque ele some quando o código é
+ * compilado com NDEBUG e o teste passaria sem verificar nada.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,14 +16,14 @@
 
 void test_http(void);
 
-static void banner(const char *nome)
+static void cabecalho(const char *nome)
 {
     printf("--- %s\n", nome);
 }
 
 int main(void)
 {
-    banner("http");
+    cabecalho("http");
     test_http();
 
     printf("OK: todos os testes passaram\n");
