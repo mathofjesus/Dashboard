@@ -27,6 +27,10 @@ void test_charset(void);
 void test_zip(void);
 void test_csv(void);
 void test_http_client(void);
+void test_fontes(void);
+void test_modelo(void);
+void test_model(void);
+void test_aggregate(void);
 
 static void cabecalho(const char *nome)
 {
@@ -64,6 +68,18 @@ int main(int argc, char **argv)
 
     cabecalho("csv");
     test_csv();
+
+    cabecalho("fontes");
+    test_fontes();
+
+    cabecalho("modelo");
+    test_modelo();
+
+    cabecalho("model");
+    test_model();
+
+    cabecalho("aggregate");
+    test_aggregate();
 
     if (com_rede) {
         cabecalho("http_client (precisa de internet)");
