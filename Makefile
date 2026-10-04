@@ -2,15 +2,15 @@ CC      = gcc
 CFLAGS  = -std=c11 -Wall -Wextra -O2
 LDLIBS  = -lz
 
-SRC       = src/main.c src/http_server.c src/api.c src/model.c src/aggregate.c src/json.c src/cache.c src/charset.c src/zip.c src/csv.c src/fontes.c src/modelo.c src/http_client.c
+SRC       = src/main.c src/http_server.c src/api.c src/model.c src/aggregate.c src/json.c src/cache.c src/charset.c src/zip.c src/csv.c src/fontes.c src/modelo.c src/http_client.c src/geo.c
 OBJ       = $(SRC:.c=.o)
 TEST_SRC  = tests/test_main.c tests/test_http.c tests/test_json.c \
             tests/test_cache.c tests/test_charset.c tests/test_zip.c tests/test_csv.c \
-            tests/test_fontes.c tests/test_modelo.c tests/test_model.c tests/test_aggregate.c tests/test_http_client.c tests/test_api.c \
+            tests/test_fontes.c tests/test_modelo.c tests/test_model.c tests/test_aggregate.c tests/test_http_client.c tests/test_api.c tests/test_geo.c \
             src/http_server.c src/json.c src/cache.c src/charset.c src/zip.c src/csv.c \
-            src/fontes.c src/modelo.c src/model.c src/aggregate.c src/http_client.c src/api.c
+            src/fontes.c src/modelo.c src/model.c src/aggregate.c src/http_client.c src/api.c src/geo.c
 TEST_HDR  = src/http_server.h src/json.h src/cache.h src/charset.h src/zip.h src/csv.h \
-            src/fontes.h src/modelo.h src/model.h src/aggregate.h src/http_client.h src/api.h
+            src/fontes.h src/modelo.h src/model.h src/aggregate.h src/http_client.h src/api.h src/geo.h
 TEST_BIN  = tests/test_bin
 
 all: dashboard
