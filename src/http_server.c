@@ -9,6 +9,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "http_server.h"
+#include "api.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -735,15 +736,42 @@ void http_handle_client(int fd, const char *web_root)
     }
     so_cabecalho = strcmp(req.method, "HEAD") == 0;
 
+    /* Roteamento: API tem prioridade */
+    if (req.path && strncmp(req.path, "api/", 4) == 0) {
+        (void)api_roteia(&req, &res);
+        if (res.status != 200 && res.status != 206)
+            goto envia;
+        if (res.body && res.length == 0)
+            res.length = (long long)strlen(res.body);
+        corpo = res.body ? strdup(res.body) : NULL;
+        n_corpo = corpo ? (size_t)res.length : 0;
+        res.body = corpo;
+        /* gzip para respostas API com corpo */
+        if (res.status == 200 && aceita_gzip(req.accept_encoding) && corpo && n_corpo >= 0) {
+            unsigned char *gz = gzip_mem((const unsigned char *)corpo, n_corpo, &n_corpo);
+            if (gz) {
+                free(corpo);
+                corpo = (char *)gz;
+                res.body = corpo;
+                res.length = (long long)n_corpo;
+                res.gzip = 1;
+                snprintf(extra, sizeof extra, "Content-Encoding: gzip\r\n");
+            } else {
+                extra[0] = '\0';
+            }
+        } else {
+            extra[0] = '\0';
+        }
+        goto envia;
+    }
+
     /* O status volta em res.status mesmo quando é erro (403/404/416). */
     if (req.range_header)
         (void)http_serve_range(web_root, req.path, req.range_header, &res);
     else
         (void)http_serve_static(web_root, &req, &res);
 
-    /* 200 e 206 seguem o mesmo caminho: o corpo da fatia é lido do disco
-     * igual ao do arquivo inteiro. Pular essa leitura no 206 fazia a
-     * resposta anunciar Content-Length e não mandar nenhum byte. */
+    /* 200 e 206 seguem o mesmo caminho */
     if (res.status != 200 && res.status != 206)
         goto envia;
 

@@ -14,7 +14,15 @@
 #include <string.h>
 
 #include "http_server.h"
+#include <unistd.h>
+#include <sys/stat.h>
 
+
+static int modelo_ja_existe(void)
+{
+    struct stat st;
+    return stat("data/processed/modelo.idx", &st) == 0;
+}
 static void uso(const char *prog)
 {
     fprintf(stderr, "uso: %s [--porta N] [--web DIR]\n", prog);
@@ -78,6 +86,9 @@ int main(int argc, char **argv)
             continue;
         }
 
+        if (strcmp(argv[i], "--atualizar") == 0 || strncmp(argv[i], "--atualizar=", 12) == 0) {
+            continue;
+        }
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             uso(argv[0]);
             return 0;
@@ -85,6 +96,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "opção desconhecida: %s\n", argv[i]);
         uso(argv[0]);
         return 2;
+    }
+
+    if (!modelo_ja_existe()) {
+        fprintf(stdout, "Execute: ./dashboard --atualizar\n");
+        return 1;
     }
 
     printf("Dashboard em http://127.0.0.1:%d/ (web: %s)\n", porta, web_root);

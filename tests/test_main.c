@@ -31,6 +31,7 @@ void test_fontes(void);
 void test_modelo(void);
 void test_model(void);
 void test_aggregate(void);
+void test_api(void);
 
 static void cabecalho(const char *nome)
 {
@@ -80,6 +81,9 @@ int main(int argc, char **argv)
 
     cabecalho("aggregate");
     test_aggregate();
+
+    cabecalho("api");
+    test_api();
 
     if (com_rede) {
         cabecalho("http_client (precisa de internet)");
