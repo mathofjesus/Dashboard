@@ -24,6 +24,8 @@ void test_http(void);
 void test_json(void);
 void test_cache(void);
 void test_charset(void);
+void test_zip(void);
+void test_csv(void);
 void test_http_client(void);
 
 static void cabecalho(const char *nome)
@@ -56,6 +58,12 @@ int main(int argc, char **argv)
 
     cabecalho("charset");
     test_charset();
+
+    cabecalho("zip");
+    test_zip();
+
+    cabecalho("csv");
+    test_csv();
 
     if (com_rede) {
         cabecalho("http_client (precisa de internet)");
