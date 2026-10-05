@@ -223,8 +223,26 @@ int fontes_baixa(const char *conf, const char *id, const char *sufixo,
     fontes_libera(fontes, n);
     if (!url) return -1;
 
-    /* 3. baixa e grava. */
+    /* 3. baixa e grava — com UMA segunda tentativa.
+     *
+     * A ingestão do IBGE leva minutos e passa por oito requisições grandes ao
+     * SIDRA. O teto do curl é de 120 s por requisição, e um servidor público
+     * que responde em 1,2 s na primeira vez e estoura os 120 s na segunda é
+     * uma coisa que acontece; sem repetição, o trabalho de dois minutos ia
+     * embora por um tempo esgotado e a pessoa tinha que rodar tudo de novo do
+     * zero. Uma repetição não conserta rede caída — ela conserta o transiente,
+     * que é o caso comum.
+     *
+     * Só uma: duas falhas seguidas são rede, não sorte, e insistir é só
+     * demorar mais para dizer a mesma coisa. */
     rc = http_get(url, &buf, &len);
+    if (rc != 0 || !buf || len == 0) {
+        free(buf);
+        buf = NULL;
+        len = 0;
+        fprintf(stderr, "  o download falhou; tentando mais uma vez...\n");
+        rc = http_get(url, &buf, &len);
+    }
     free(url);
     if (rc != 0 || !buf || len == 0) {
         free(buf);
