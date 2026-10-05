@@ -88,6 +88,7 @@ void test_model(void);
 void test_aggregate(void);
 void test_api(void);
 void test_geo(void);
+void test_saude(void);
 
 static void cabecalho(const char *nome)
 {
@@ -141,6 +142,9 @@ int main(int argc, char **argv)
 
     cabecalho("geo");
     test_geo();
+
+    cabecalho("saude");
+    test_saude();
 
     if (com_rede) {
         cabecalho("http_client (precisa de internet)");
