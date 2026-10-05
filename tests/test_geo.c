@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>          /* getcwd, chdir */
 
 #include "../src/geo.h"
 #include "../src/cache.h"
@@ -479,16 +480,38 @@ static void testa_sem_dado(void)
 }
 
 /* geo_prepara com fonte crua ausente devolve != 0 em vez de inventar dado ou
- * travar: é o caminho de quem nunca rodou --atualizar. */
+ * travar: é o caminho de quem nunca rodou --atualizar.
+ *
+ * O teste roda dentro de um diretório temporário, com `chdir`, porque tanto
+ * data/cache/ quanto fontes.conf são caminhos RELATIVOS. Era este o teste que
+ * dependia da máquina: ele apagava o cache e esperava que o download falhasse,
+ * o que só acontece sem rede — numa máquina com rede ele baixava 5,78 MB das
+ * malhas e falhava a asserção. Dentro do temporário não há cache e não há .conf,
+ * então a falha é a mesma em qualquer
+ * máquina, com rede ou sem ela. */
 static void testa_fonte_ausente(void)
 {
     size_t len = 0;
+    char antes[4096];
+    char tmp[] = "/tmp/teste-geo-XXXXXX";
+    char *dir;
 
     limpa_tudo();
+
+    if (!getcwd(antes, sizeof antes)) antes[0] = '\0';
+    dir = mkdtemp(tmp);
+    T_ASSERT(dir != NULL, "cria diretório temporário");
+    T_ASSERT(chdir(dir) == 0, "entra no diretório temporário");
+
     T_ASSERT(geo_prepara(GEO_MUNICIPIOS) != 0,
-             "sem fonte no cache e sem rede, geo_prepara deve falhar");
+             "sem fonte no cache e sem .conf, geo_prepara deve falhar");
     T_ASSERT(geo_saida(GEO_MUNICIPIOS, &len) == NULL,
-             "prepare falho nao deve deixar saida pela metade");
+             "prepare falho não deve deixar saída pela metade");
+    T_ASSERT(geo_saida(GEO_ESTADOS, &len) == NULL,
+             "e nem de outro nível");
+
+    T_ASSERT(chdir(antes[0] ? antes : "..") == 0, "volta do temporário");
+    remove(dir);
 }
 
 /* geo_codigo_uf: o mapa aceita a sigla ou o código, em qualquer caixa. */

@@ -1,13 +1,30 @@
-/* main.c -- entrada do dashboard: lê --porta/--web e sobe o servidor HTTP.
+/* main.c — entrada do dashboard: lê as opções, faz a ingestão pedida ou sobe
+ * o servidor HTTP.
  *
- * Uso: dashboard [--porta N] [--web DIR] [--atualizar] [--geo-info]
- *   --porta N     porta TCP em loopback (padrão 8080)
- *   --web DIR     diretório de arquivos estáticos (padrão "web")
- *   --atualizar   processa as malhas do IBGE e sai
- *   --geo-info    mede as malhas já processadas e sai
+ * Uso: dashboard [--porta N] [--web DIR] [--atualizar [fonte]] [--geo-info]
+ *                 [--amostra]
+ *   --porta N          porta TCP em loopback (padrão 8080)
+ *   --web DIR          diretório de estáticos (padrão "web")
+ *   --atualizar        inger IBGE (população) e as malhas, e sai
+ *   --atualizar ibge   só a ingestão de dado do IBGE
+ *   --atualizar malhas só as malhas do mapa
+ *   --atualizar cnes   recusado: dado do CNES ainda não é ingerido
+ *   --geo-info         mede as malhas já processadas e sai
+ *   --amostra          grava um índice de amostra em data/processed/ (teste e
+ *                      diagnóstico; não baixa nada e não serve para dado real)
  *
  * O servidor só escuta em 127.0.0.1: não há autenticação, então escutar em
  * todas as interfaces exporia os dados para a rede local.
+ *
+ * O portão de primeira execução
+ * -----------------------------
+ * A spec §10 manda o servidor recusar quando falta dado processado, imprimindo
+ * o comando exato e saindo com código != 0 — em vez de baixar 56 MB sozinho,
+ * que é lento e falha sem feedback. O que conta como "dado processado" é o
+ * índice que a ingestão escreve, e ele é **lido**, não só testado: o
+ * portão carrega o modelo e só sobe se ele abrir. Um arquivo vazio ou
+ * truncado no lugar não passa — que é o que acontecia com o `stat()` antigo,
+ * que aceitava qualquer arquivo com o nome certo.
  */
 #define _POSIX_C_SOURCE 200809L
 
@@ -16,19 +33,18 @@
 #include <string.h>
 
 #include "http_server.h"
+#include "api.h"
+#include "model.h"
+#include "fontes.h"
 #include "geo.h"
 #include <unistd.h>
 #include <sys/stat.h>
 
-
-static int modelo_ja_existe(void)
-{
-    struct stat st;
-    return stat("data/processed/modelo.idx", &st) == 0;
-}
 static void uso(const char *prog)
 {
-    fprintf(stderr, "uso: %s [--porta N] [--web DIR] [--atualizar] [--geo-info]\n", prog);
+    fprintf(stderr,
+            "uso: %s [--porta N] [--web DIR] [--atualizar [ibge|malhas]] "
+            "[--geo-info] [--amostra]\n", prog);
 }
 
 /* Conta features de um GeoJSON sem parsear: o --geo-info é uma medição de
@@ -72,8 +88,7 @@ static int geo_info(void)
 }
 
 /* Lê "--nome valor" ou "--nome=valor". Devolve 1 se consumiu o argumento,
- * 0 se a opção não é essa e -1 se falta o valor.
- */
+ * 0 se a opção não é essa e -1 se falta o valor. */
 static int pega_opcao(int argc, char **argv, int *i, const char *nome,
                       const char **valor)
 {
@@ -93,13 +108,83 @@ static int pega_opcao(int argc, char **argv, int *i, const char *nome,
     return 0;
 }
 
-static int geoprep_pendente = 0;
+/* ------------------------------------------------------------------ */
+/* --atualizar                                                        */
+/* ------------------------------------------------------------------ */
+
+/* Uma falha de ingestão é fatal e fala em português: quem está na frente do
+ * terminal precisa saber se foi falta de rede, arquivo quebrado ou disco. */
+static int atualiza_malhas(void)
+{
+    int rc_mun = geo_prepara(GEO_MUNICIPIOS);
+    int rc_est = geo_prepara(GEO_ESTADOS);
+
+    if (rc_mun != 0 || rc_est != 0) {
+        fprintf(stderr,
+                "não consegui processar as malhas. Rode com rede "
+                "(curl baixa de data/cache/) ou confira fontes.conf.\n");
+        return 1;
+    }
+    return 0;
+}
+
+static int atualiza(const char *fonte)
+{
+    int rc_geo = 0, rc_m = 0;
+
+    if (!fonte || strcmp(fonte, "ibge") == 0) {
+        /* Dado primeiro: um banco com dado e sem mapa é útil; o contrário
+         * derruba o front em silêncio no primeiro clique. */
+        rc_m = model_ingere_ibge(FONTES_CONF);
+    } else if (strcmp(fonte, "malhas") == 0) {
+        return atualiza_malhas();
+    } else if (strcmp(fonte, "cnes") == 0 || strcmp(fonte, "dengue") == 0 ||
+               strcmp(fonte, "leitos") == 0) {
+        /* Recusar com mensagem é melhor que aceitar e fingir: o relatório da
+         * T7 dizia "aceito e ignorado", e foi exatamente aí que a ingestão do
+         * IBGE pareceu existir. */
+        fprintf(stderr,
+                "--atualizar %s ainda não é implementado: a ingestão de dado do "
+                "Ministério da Saúde (CNES, Leitos, Dengue) é tarefa "
+                "posterior.\n"
+                "O que existe hoje: --atualizar ibge (população do IBGE) e "
+                "--atualizar malhas.\n", fonte);
+        return 2;
+    } else {
+        fprintf(stderr,
+                "--atualizar %s não é uma fonte conhecida. Use ibge ou malhas.\n",
+                fonte);
+        return 2;
+    }
+
+    /* As malhas vêm junto por padrão: é o que o front busca no load e sem elas
+     * o mapa fica cinza sem nenhum aviso. */
+    rc_geo = atualiza_malhas();
+
+    if (rc_m != 0 || rc_geo != 0) return 1;
+
+    geo_info();
+    {
+        model m;
+        if (model_carrega(&m) == 0) {
+            printf("%-12s %7zu municípios, %zu anos, %zu UFs\n",
+                   "modelo:", m.n_local, m.n_anos, m.n_ufs);
+            model_libera(&m);
+        }
+    }
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* main                                                               */
+/* ------------------------------------------------------------------ */
 
 int main(int argc, char **argv)
 {
     const char *web_root = "web";
     int porta = 8080;
-    int pedir_geo_info = 0;
+    int pedir_geo_info = 0, pedir_atualizar = 0, pedir_amostra = 0;
+    const char *fonte = NULL;
     int i;
 
     for (i = 1; i < argc; i++) {
@@ -132,12 +217,29 @@ int main(int argc, char **argv)
             continue;
         }
 
-        if (strcmp(argv[i], "--atualizar") == 0 || strncmp(argv[i], "--atualizar=", 12) == 0) {
-            geoprep_pendente = 1;
+        /* `--atualizar` e `--atualizar=ibge`. A forma com valor colado e a
+         * forma com valor separado são as duas aceitas; sem valor, vale "ibge",
+         * que é o que o guia de uso manda rodar. */
+        if (strcmp(argv[i], "--atualizar") == 0) {
+            pedir_atualizar = 1;
+            fonte = NULL;
+            continue;
+        }
+        if (strncmp(argv[i], "--atualizar=", 12) == 0) {
+            pedir_atualizar = 1;
+            fonte = argv[i] + 12;
+            if (!*fonte) {
+                fprintf(stderr, "--atualizar= sem fonte\n");
+                return 2;
+            }
             continue;
         }
         if (strcmp(argv[i], "--geo-info") == 0) {
             pedir_geo_info = 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--amostra") == 0) {
+            pedir_amostra = 1;
             continue;
         }
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -149,35 +251,55 @@ int main(int argc, char **argv)
         return 2;
     }
 
-    if (pedir_geo_info)
+    if (pedir_geo_info && !pedir_atualizar && !pedir_amostra)
         return geo_info();
 
-    /* --atualizar processa a geometria e sai: baixar e simplificar 5,78 MB é
-     * lento e não é serviço de servidor. As malhas já em cache não pedem
-     * rede nenhuma. */
-    if (geoprep_pendente) {
-        int rc = geo_prepara(GEO_MUNICIPIOS);
-        int rc2 = geo_prepara(GEO_ESTADOS);
-        if (rc != 0 && rc2 != 0) {
-            fprintf(stderr,
-                    "não consegui processar as malhas. Rode com rede "
-                    "(curl baixa de data/cache/) ou confira fontes.conf.\n");
+    /* --amostra: escreve um índice de amostra no diretório de execução e sai.
+     * É o que permite a suíte ter um servidor de verdade sem depender de rede
+     * nem do dado real de quem roda o teste (achado I14/C2 da revisão). */
+    if (pedir_amostra) {
+        if (model_grava_amostra(MODELO_IDX) != 0) {
+            fprintf(stderr, "não consegui gravar o índice de amostra em %s\n",
+                    MODELO_IDX);
             return 1;
         }
-        return geo_info();
+        printf("índice de amostra gravado em %s (3 municípios, 3 anos)\n", MODELO_IDX);
+        return 0;
     }
 
-    if (!modelo_ja_existe()) {
-        fprintf(stdout, "Execute: ./dashboard --atualizar\n");
-        return 1;
-    }
+    if (pedir_atualizar)
+        return atualiza(fonte);
 
-    printf("Dashboard em http://127.0.0.1:%d/ (web: %s)\n", porta, web_root);
-    fflush(stdout);
+    /* ---- portão de primeira execução ----
+     * O índice é carregado de verdade, não só testado com stat(): um arquivo
+     * de 3 bytes escrito à mão satisfazia o portão antigo e o servidor subia
+     * com o modelo vazio, respondendo `{"anos":[],"ufs":[]}` para tudo. */
+    {
+        model m;
+        if (model_carrega(&m) != 0) {
+            fprintf(stderr,
+                    "Não há dado processado.\n"
+                    "Rode: ./dashboard --atualizar ibge\n"
+                    "(ele baixa a lista de municípios do IBGE e a série de "
+                    "população, e grava %s).\n", MODELO_IDX);
+            return 1;
+        }
+        printf("Modelo: %zu municípios, %zu anos, %zu UFs (%s)\n",
+               m.n_local, m.n_anos, m.n_ufs, MODELO_IDX);
 
-    if (http_listen_and_serve(porta, web_root) != 0) {
-        fprintf(stderr, "não consegui servir na porta %d\n", porta);
-        return 1;
+        printf("Dashboard em http://127.0.0.1:%d/ (web: %s)\n", porta, web_root);
+        fflush(stdout);
+
+        /* O modelo é carregado uma vez e apontado na API; cada requisição lê
+         * dele, em vez de reler o arquivo em disco. */
+        api_set_model(&m);
+
+        if (http_listen_and_serve(porta, web_root) != 0) {
+            fprintf(stderr, "não consegui servir na porta %d\n", porta);
+            model_libera(&m);
+            return 1;
+        }
+        model_libera(&m);
     }
     return 0;
 }
