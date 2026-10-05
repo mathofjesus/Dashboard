@@ -5,6 +5,8 @@
 #include <ctype.h>
 
 #include "fontes.h"
+#include "cache.h"
+#include "http_client.h"
 
 static char *dup_str(const char *s)
 {
@@ -16,21 +18,27 @@ static char *dup_str(const char *s)
     return p;
 }
 
-static void trim(char *s)
+/* Aponta o começo e o fim do texto sem espaço nas pontas, **no lugar**.
+ *
+ * Devolve o começo do texto já aparado, mas também desloca os bytes: sem o
+ * memmove, o ponteiro devolvido serve só para ler e quem chamou continues
+ * apontando para a cópia dentro do buffer — que era o bug do `if (s != s)`,
+ * condição que nunca é verdadeira e portanto nunca movia nada. O sintoma era
+ * toda URL de fontes.conf saindo com um espaço à esquerda e sendo recusada
+ * por http_client.c:url_aceita(), que só aceita o que começa por "http".
+ */
+static char *trim(char *s)
 {
-    if (!s) return;
-    char *end;
-    while (isspace((unsigned char)*s)) s++;
-    if (*s == 0) return;
-    end = s + strlen(s) - 1;
-    while (end > s && isspace((unsigned char)*end)) {
-        *end = '\0';
-        end--;
-    }
-    /* if shifted, move */
-    if (s != s) {
-        memmove(s, s, strlen(s) + 1);
-    }
+    char *ini, *fim;
+
+    if (!s) return NULL;
+    ini = s;
+    while (isspace((unsigned char)*ini)) ini++;
+    fim = ini + strlen(ini);
+    while (fim > ini && isspace((unsigned char)fim[-1])) fim--;
+    *fim = '\0';
+    if (ini != s) memmove(s, ini, (size_t)(fim - ini) + 1);
+    return s;
 }
 
 void fontes_libera(fonte_dados *fontes, size_t n)
@@ -44,6 +52,7 @@ void fontes_libera(fonte_dados *fontes, size_t n)
         free(fontes[i].url_cnes);
         free(fontes[i].url_leitos);
         free(fontes[i].url_dengue);
+        free(fontes[i].dataset);
         free(fontes[i].ibge_tid);
         free(fontes[i].cod_ibge);
         free(fontes[i].uf);
@@ -57,6 +66,13 @@ void fontes_libera(fonte_dados *fontes, size_t n)
     free(fontes);
 }
 
+static int subst(char **campo, const char *valor)
+{
+    free(*campo);
+    *campo = dup_str(valor);
+    return *campo ? 0 : -1;
+}
+
 int fontes_ler(const char *path, fonte_dados **fontes, size_t *n)
 {
     if (!path || !fontes || !n) return -1;
@@ -64,108 +80,169 @@ int fontes_ler(const char *path, fonte_dados **fontes, size_t *n)
     *n = 0;
     FILE *f = fopen(path, "r");
     if (!f) return -1;
-    
+
     char line[4096];
     fonte_dados *arr = NULL;
     size_t count = 0;
     size_t cap = 0;
-    
+
     while (fgets(line, sizeof(line), f)) {
-        /* skip empty lines */
-        char *p = line;
-        while (isspace((unsigned char)*p)) p++;
-        if (*p == '\0' || *p == '\n' || *p == '\r') continue;
-        /* skip comments if any */
-        if (*p == '#') continue;
-        /* check for section [name] */
-        if (*p == '[') {
+        char *p = trim(line);
+        if (*p == '\0') continue;             /* linha vazia ou só espaços */
+        if (*p == '#') continue;              /* comentário */
+        if (*p == '[') {                      /* nova seção */
             char *end = strchr(p, ']');
             if (end) {
                 *end = '\0';
-                char *sec = p + 1;
-                trim(sec);
                 if (count == cap) {
+                    fonte_dados *tmp;
                     cap = cap == 0 ? 8 : cap * 2;
-                    fonte_dados *tmp = realloc(arr, cap * sizeof(fonte_dados));
-                    if (!tmp) {
-                        fontes_libera(arr, count);
-                        fclose(f);
-                        return -1;
-                    }
+                    tmp = realloc(arr, cap * sizeof(fonte_dados));
+                    if (!tmp) goto falha;
                     arr = tmp;
                 }
                 memset(&arr[count], 0, sizeof(fonte_dados));
-                arr[count].id = dup_str(sec);
-                arr[count].tem_utf8 = 0;
+                arr[count].ttl = CACHE_TTL_NENHUM;
+                arr[count].id = dup_str(trim(p + 1));
+                if (!arr[count].id) goto falha;
                 count++;
             }
             continue;
         }
-        /* key = value */
-        char *eq = strchr(p, '=');
-        if (!eq) continue; /* linha sem = é ignorada sem crash */
-        *eq = '\0';
-        char *key = p;
-        char *val = eq + 1;
-        trim(key);
-        trim(val);
-        /* remove trailing newline from val */
-        char *endv = val + strlen(val) - 1;
-        while (endv >= val && (*endv == '\n' || *endv == '\r')) {
-            *endv = '\0';
-            endv--;
-        }
-        if (count == 0) continue; /* no section yet */
-        fonte_dados *cur = &arr[count - 1];
-        if (strcmp(key, "id") == 0) {
-            free(cur->id);
-            cur->id = dup_str(val);
-        } else if (strcmp(key, "nome") == 0) {
-            cur->nome = dup_str(val);
-        } else if (strcmp(key, "tipo") == 0) {
-            cur->tipo = dup_str(val);
-        } else if (strcmp(key, "url_zip") == 0 || strcmp(key, "url") == 0) {
-            cur->url_zip = dup_str(val);
-        } else if (strcmp(key, "url_cnes") == 0) {
-            cur->url_cnes = dup_str(val);
-        } else if (strcmp(key, "url_leitos") == 0) {
-            cur->url_leitos = dup_str(val);
-        } else if (strcmp(key, "url_dengue") == 0) {
-            cur->url_dengue = dup_str(val);
-        } else if (strcmp(key, "tem_utf8") == 0) {
-            cur->tem_utf8 = atoi(val);
-        } else if (strcmp(key, "ibge_tid") == 0) {
-            cur->ibge_tid = dup_str(val);
-        } else if (strcmp(key, "cod_ibge") == 0) {
-            cur->cod_ibge = dup_str(val);
-        } else if (strcmp(key, "uf") == 0) {
-            cur->uf = dup_str(val);
-        } else if (strcmp(key, "dataset") == 0) {
-            /* store in nome or just ignore if not needed */
-        } else if (strcmp(key, "ttl") == 0) {
-            /* ignore */
+
+        {
+            char *eq = strchr(p, '=');
+            char *key, *val;
+            fonte_dados *cur;
+
+            if (!eq) continue;                /* linha sem "=" é ignorada */
+            *eq = '\0';
+            key = trim(p);
+            val = trim(eq + 1);
+            if (count == 0) continue;         /* chave antes de qualquer seção */
+            cur = &arr[count - 1];
+
+            if (strcmp(key, "id") == 0)              subst(&cur->id, val);
+            else if (strcmp(key, "nome") == 0)       subst(&cur->nome, val);
+            else if (strcmp(key, "tipo") == 0)       subst(&cur->tipo, val);
+            else if (strcmp(key, "url_zip") == 0 || strcmp(key, "url") == 0)
+                                                subst(&cur->url_zip, val);
+            else if (strcmp(key, "url_cnes") == 0)  subst(&cur->url_cnes, val);
+            else if (strcmp(key, "url_leitos") == 0) subst(&cur->url_leitos, val);
+            else if (strcmp(key, "url_dengue") == 0) subst(&cur->url_dengue, val);
+            else if (strcmp(key, "tem_utf8") == 0)  cur->tem_utf8 = atoi(val);
+            else if (strcmp(key, "ibge_tid") == 0)  subst(&cur->ibge_tid, val);
+            else if (strcmp(key, "cod_ibge") == 0)  subst(&cur->cod_ibge, val);
+            else if (strcmp(key, "uf") == 0)         subst(&cur->uf, val);
+            /* `dataset` e `ttl` não são decorativos: o primeiro diz qual
+             * entrada do ZIP é o CSV e em que codificação ele vem, e o segundo
+             * é o prazo que fontes_garente arma no cache. Descartá-los (como
+             * antes) fazia o Passo 7 do brief não ter prazo nenhum. */
+            else if (strcmp(key, "dataset") == 0)   subst(&cur->dataset, val);
+            else if (strcmp(key, "ttl") == 0) {
+                char *fim;
+                long v = strtol(val, &fim, 10);
+                if (fim != val && *fim == '\0') cur->ttl = (int)v;
+            }
         }
     }
     fclose(f);
-    *fontes = arr;
-    *n = count;
+
     if (count == 0) {
         free(arr);
-        *fontes = NULL;
         return -1;
     }
+    *fontes = arr;
+    *n = count;
+    return 0;
+
+falha:
+    fclose(f);
+    fontes_libera(arr, count);
+    return -1;
+}
+
+const fonte_dados *fontes_obtem(const fonte_dados *fontes, size_t n,
+                                const char *id)
+{
+    size_t i;
+
+    if (!fontes || !id) return NULL;
+    for (i = 0; i < n; i++) {
+        if (fontes[i].id && strcmp(fontes[i].id, id) == 0) return &fontes[i];
+    }
+    return NULL;
+}
+
+int fontes_baixa(const char *conf, const char *id, const char *sufixo,
+                 const char *chave_cache, char **out, size_t *out_len)
+{
+    char *buf = NULL;
+    size_t len = 0;
+    char *url = NULL;
+    const char *chave;
+    char tmp[600];
+    fonte_dados *fontes = NULL;
+    size_t n = 0;
+    const fonte_dados *f;
+    int rc, ttl;
+
+    if (!out || !out_len || !id || !*id) return -1;
+    *out = NULL;
+    *out_len = 0;
+    chave = (chave_cache && *chave_cache) ? chave_cache : id;
+
+    /* 1. cache válido? Sem rede e sem abrir o .conf — é o caminho de todo
+     *    servidor que já rodou --atualizar. */
+    if (cache_tem(chave) && cache_le(chave, &buf, &len) == 0 && len > 0) {
+        *out = buf;
+        *out_len = len;
+        return 0;
+    }
+    free(buf);
+    buf = NULL;
+    len = 0;
+
+    /* 2. não está no cache (ou expirou): a url mora no .conf, nunca no
+     *    código. O `url` é malloc'd porque vive no vetor, que é liberado no
+     *    fim, e o download pode levar dezenas de segundos. */
+    if (!conf) return -1;
+    if (fontes_ler(conf, &fontes, &n) != 0) return -1;
+    f = fontes_obtem(fontes, n, id);
+    if (!f || !f->url_zip) {
+        fontes_libera(fontes, n);
+        return -1;
+    }
+    ttl = f->ttl;
+    if ((size_t)snprintf(tmp, sizeof tmp, "%s%s", f->url_zip,
+                         sufixo ? sufixo : "") >= sizeof tmp) {
+        fontes_libera(fontes, n);
+        return -1;
+    }
+    url = dup_str(tmp);
+    fontes_libera(fontes, n);
+    if (!url) return -1;
+
+    /* 3. baixa e grava. */
+    rc = http_get(url, &buf, &len);
+    free(url);
+    if (rc != 0 || !buf || len == 0) {
+        free(buf);
+        return rc != 0 ? rc : -1;
+    }
+    if (cache_grava(chave, buf, len) != 0) {
+        /* Perder o cache é mais barato que perder a ingestão inteira. */
+        fprintf(stderr, "aviso: não gravei a fonte %s no cache\n", chave);
+    } else if (ttl != CACHE_TTL_NENHUM) {
+        cache_set_ttl(chave, ttl);
+    }
+    *out = buf;
+    *out_len = len;
     return 0;
 }
 
-int fontes_garente(fonte_dados *fontes, size_t n, fonte_dados **selecionada, const char *id)
+int fontes_garente(const char *arquivo_conf, const char *id,
+                   char **out, size_t *out_len)
 {
-    if (!fontes || n == 0 || !id) return -1;
-    for (size_t i = 0; i < n; i++) {
-        if (fontes[i].id && strcmp(fontes[i].id, id) == 0) {
-            if (selecionada) *selecionada = &fontes[i];
-            return 0;
-        }
-    }
-    if (selecionada) *selecionada = NULL;
-    return -1;
+    return fontes_baixa(arquivo_conf, id, NULL, id, out, out_len);
 }

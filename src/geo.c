@@ -604,32 +604,24 @@ static char *monta_saida(feature *fs, size_t n, size_t *out_len)
 /* fonte: cache de download, ou download se faltar                    */
 /* ------------------------------------------------------------------ */
 
-/* Devolve o corpo cru de uma fonte, malloc'd, e o tamanho em *out_len. Se já
- * está no cache, lê de lá — é o caminho normal depois do primeiro
- * --atualizar e o caminho que a suíte de teste exercita sem rede. Se não
- * está, baixa pela URL da fonte e grava no cache. */
-static char *obtem_fonte(const char *chave, const char *url, size_t *out_len)
+/* Devolve o corpo cru de uma fonte, malloc'd, e o tamanho em *out_len.
+ *
+ * Todo o caminho — cache válido, expirado, download e gravação — é o de
+ * fontes_garente(). geo.c não reimplementa mais nada disso por fora: duas
+ * cópias do mesmo algoritmo divergem, e a cópia daqui era a que ignorava o
+ * TTL do .conf.
+ *
+ * `conf` NULL significa "só o cache": usado no primeiro passe, em que se quer
+ * saber o que já está em disco sem abrir o .conf nem tocar a rede. */
+static char *obtem_fonte(const char *conf, const char *chave, size_t *out_len)
 {
     char *buf = NULL;
     size_t len = 0;
 
-    *out_len = 0;
-    if (cache_le(chave, &buf, &len) == 0) {
-        if (len > 0) { *out_len = len; return buf; }
-        free(buf);
-        buf = NULL;
-    }
-    if (!url) return NULL;
-    if (http_get(url, &buf, &len) != 0 || len == 0) {
-        free(buf);
-        return NULL;
-    }
-    if (cache_grava(chave, buf, len) != 0) {
-        /* O download deu certo mas não deu para gravar. Ainda entregamos o
-         * buffer: perder o cache é mais barato que perder o build inteiro. */
-        fprintf(stderr, "aviso: nao gravei a fonte %s no cache\n", chave);
-    }
-    *out_len = len;
+    if (out_len) *out_len = 0;
+    if (fontes_garente(conf, chave, &buf, &len) != 0) return NULL;
+    if (len == 0) { free(buf); return NULL; }
+    if (out_len) *out_len = len;
     return buf;
 }
 
@@ -834,12 +826,9 @@ static const char *path_do_nivel(geo_nivel nivel)
 int geo_prepara(geo_nivel nivel)
 {
     const char *const *chaves;
-    size_t nchaves = 0, i, presentes = 0;
-    char **urls = NULL;
+    size_t nchaves = 0, i;
     char **buf = NULL;
     size_t *len = NULL;
-    fonte_dados *fontes = NULL;
-    size_t nfontes = 0;
     feature *acum = NULL;
     size_t n_acum = 0, cap_acum = 0;
     char *saida = NULL;
@@ -849,34 +838,21 @@ int geo_prepara(geo_nivel nivel)
     chaves = chaves_do_nivel(nivel, &nchaves);
     if (!chaves) return -1;
 
-    urls  = calloc(nchaves, sizeof *urls);
-    buf   = calloc(nchaves, sizeof *buf);
-    len   = calloc(nchaves, sizeof *len);
-    if (!urls || !buf || !len) goto fim;
+    buf = calloc(nchaves, sizeof *buf);
+    len = calloc(nchaves, sizeof *len);
+    if (!buf || !len) goto fim;
 
     /* Primeiro tenta tudo no cache. É o caso comum depois do primeiro
-     * --atualizar, e é o que permite rodar sem rede. */
+     * --atualizar, e é o que permite rodar sem rede — e é por isso que o
+     * primeiro passe não abre o .conf. */
     for (i = 0; i < nchaves; i++) {
-        buf[i] = obtem_fonte(chaves[i], NULL, &len[i]);
-        if (buf[i]) presentes++;
+        buf[i] = obtem_fonte(NULL, chaves[i], &len[i]);
     }
 
-    /* Só o que faltou no cache pede rede, e só então vale a pena abrir o
-     * .conf: um build 100% servido do cache funciona com fontes.conf
-     * ausente, o que é o estado de um servidor que já atualizou. */
-    if (presentes < nchaves) {
-        if (fontes_ler("fontes.conf", &fontes, &nfontes) != 0) goto fim;
-        for (i = 0; i < nchaves; i++) {
-            fonte_dados *f = NULL;
-            if (buf[i]) continue;
-            if (fontes_garente(fontes, nfontes, &f, chaves[i]) == 0 && f)
-                urls[i] = f->url_zip;     /* pertence ao bloco de fontes */
-        }
-    }
+    /* Só o que faltou no cache pede rede. */
     for (i = 0; i < nchaves; i++) {
         if (buf[i]) continue;
-        if (!urls[i]) goto fim;
-        buf[i] = obtem_fonte(chaves[i], urls[i], &len[i]);
+        buf[i] = obtem_fonte(FONTES_CONF, chaves[i], &len[i]);
         if (!buf[i]) goto fim;
     }
 
@@ -897,8 +873,6 @@ fim:
     free(saida);
     features_libera(acum, n_acum);
     for (i = 0; i < nchaves; i++) free(buf[i]);
-    fontes_libera(fontes, nfontes);
-    free(urls);
     free(buf);
     free(len);
     return rc;
