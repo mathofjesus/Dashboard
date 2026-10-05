@@ -263,7 +263,10 @@ export function preencherOpcoes(doc, resultado, anoAtual, ufAtual) {
      * recente, que é o que o usuário quer ver primeiro. */
     const alvoAno = (anoAtual && anos.some((a) => String(a) === String(anoAtual)))
         ? String(anoAtual)
-        : (anos.length ? String(anos[0]) : '');
+        : /* I7: o maior ano, e não o primeiro da lista. `/api/opcoes` devolve os anos
+  * em ordem crescente, então `anos[0]` era 2001 — o mais velho de uma série
+  * de 22 — e o painel abria com "Dado publicado em 2001". */
+ (anos.length ? String(anos[anos.length - 1]) : '');
 
     if (!itensAno.length) {
         while (selAno.firstChild) selAno.removeChild(selAno.firstChild);

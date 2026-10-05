@@ -16,7 +16,8 @@
  * mesma separação do ruling C-5 que vale para os gráficos.
  */
 
-import { consultar, opcoes, geo, montarQuery as montarQueryApi } from './api.js';
+import { consultar, opcoes, geo, nivelGeo, montarQuery as montarQueryApi } from './api.js';
+import { desenharMapa, CLASSE_SEM_DADO } from './map.js';
 import {
     barras as desenharBarrasNo,
     donut as desenharDonutNo,
@@ -362,8 +363,12 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
         /* --- série histórica ------------------------------------------- */
         const cartaoLinha = cartao(
             `${rotulo} ao longo do tempo${recorte ? ` — ${recorte}` : ''}`,
+            /* Sem "destaque em {ano}": o gráfico não marca o ano escolhido, e
+             * a nota da Tarefa 10 prometia um destaque que ninguém desenhava
+             * (achado I4). A lacuna é marcada no gráfico — a série é que
+             * informa o que existe e o que não existe. */
             pontos.length
-                ? `${pontos.length} anos publicados${f.ano ? ` · destaque em ${f.ano}` : ''}`
+                ? `${pontos.length} anos publicados`
                 : 'Sem série neste recorte: escolha uma UF para ver a história.',
         );
         painel.appendChild(cartaoLinha.artigo);
@@ -419,23 +424,96 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
         return partes.join(' · ');
     }
 
-    /** O mapa é cinza neutro até haver valor para colorir. */
+    /**
+     * Desenha o coroplético no painel `#mapa`.
+     *
+     * `resposta` pode ser null: ao abrir, ainda não houve consulta, e o mapa
+     * é o contorno do Brasil todo em cinza de ausência — que é o que a spec
+     * §10 descreve ("mapa em cinza neutro" ao abrir). Com a resposta, cada
+     * município recebe a cor da sua faixa e os que não têm dado continuam
+     * cinza.
+     *
+     * O nome do município não vem da malha: `codarea` é a única coisa que o
+     * IBGE põe em `properties`. Ele sai dos registros da consulta, e por isso
+     * os dois caminhos são desenhados com o mesmo dicionário de nomes.
+     */
     function renderMapa(resposta, nivel) {
         const painel = doc.getElementById('mapa');
         if (!painel) return;
-        while (painel.firstChild) painel.removeChild(painel.firstChild);
+
         const total = resposta && typeof resposta.total === 'number' ? resposta.total : 0;
-        if (total === 0) {
+        if (resposta && total === 0) {
+            painel.replaceChildren();
             painel.textContent = 'Sem dados para os filtros escolhidos.';
             painel.className = 'estado-vazio';
             return painel;
         }
-        const p = doc.createElement('p');
-        const unidade = nivel === 'uf' ? 'estado' : 'município';
-        p.textContent = `${textoOpcoes(total)} ${plural(total, unidade, `${unidade}s`)} no resultado.`;
-        painel.appendChild(p);
-        painel.className = '';
+
+        const malha = geoAtual(nivel);
+        if (!malha) {
+            painel.replaceChildren();
+            painel.textContent = malha === null
+                ? 'Sem malha processada. Rode: ./dashboard --atualizar ibge'
+                : 'Sem dados — clique em Filtrar';
+            painel.className = 'estado-vazio';
+            return painel;
+        }
+
+        const registros = resposta && Array.isArray(resposta.registros) ? resposta.registros : [];
+        const valores = {};
+        const nomes = {};
+        for (const r of registros) {
+            const cod = r && r.cod !== undefined && r.cod !== null ? String(r.cod) : null;
+            if (!cod) continue;
+            valores[cod] = r.valor;
+            if (r.nome) nomes[cod] = r.nome;
+        }
+
+        const desenhado = desenharMapa(painel, malha, valores, {
+            doc,
+            rotulos: nivel === 'uf',
+            titulo: resposta ? `${textoOpcoes(total)} no resultado` : null,
+            aoClicar: (cod) => mostraDetalhe(painel, cod, nomes, valores, nivel),
+        });
+        painel.className = desenhado && desenhado.vazio ? 'estado-vazio' : '';
         return painel;
+    }
+
+    /**
+     * O que o clique num município escreve no painel.
+     *
+     * Fica no próprio mapa, no lugar do valor, e não numa janela ou num
+     * tooltip: a informação some quando o mapa é redesenhado, que é o
+     * comportamento certo para um cartão de leitura.
+     */
+    function mostraDetalhe(painel, cod, nomes, valores, nivel) {
+        const unidade = nivel === 'uf' ? 'estado' : 'município';
+        const nome = nomes[cod] || (nivel === 'uf' ? `UF ${cod}` : `Município ${cod}`);
+        const bruto = valores[cod];
+        const temValor = bruto !== undefined && bruto !== null && bruto !== '' && Number(bruto) >= 0;
+
+        const anterior = painel.querySelector ? painel.querySelector('.mapa-detalhe') : null;
+        if (anterior) painel.removeChild(anterior);
+
+        const p = doc.createElement('p');
+        p.className = 'mapa-detalhe';
+        p.textContent = temValor
+            ? `${nome}: ${textoOpcoes(bruto)}`
+            : `${nome}: sem dado publicado para este recorte.`;
+        painel.appendChild(p);
+        return p;
+    }
+
+    /**
+     * A malha do nível pedido, de memória.
+     *
+     * `geoAtual` é síncrono de propósito: quem desenha é síncrono, e esperar a
+     * malha chegar para pintar o cinza de ausência não traria nada — o mapa
+     * sem geometria é um cartão com aviso, e o retry é o clique em Filtrar.
+     */
+    function geoAtual(nivel) {
+        const chave = `geo:${nivelGeo(nivel)}`;
+        return cacheGeo.has(chave) ? cacheGeo.get(chave) : null;
     }
 
     function renderErro(mensagem) {
@@ -580,6 +658,18 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
                 renderKpis({ total: estado.total, ...(estado.kpis || {}) }, consulta.nivel);
                 renderGraficos(resposta, consulta);
                 renderTabela(estado.registros);
+
+                /* A malha é buscada no carregamento, mas essa espera é o que
+                 * fecha a corrida entre as duas coisas: o clique em Filtrar
+                 * pode chegar antes de `carregarMapa` resolver, e sem esta
+                 * linha o primeiro mapa da sessão sairia como o aviso "sem
+                 * dados" mesmo com a consulta completa na tela ao lado. Só
+                 * busca quando ainda não está em memória — `geo` devolve do
+                 * cache nas demais consultas, e o segundo clique não paga
+                 * rede nenhuma. */
+                if (!cacheGeo.has(`geo:${nivelGeo(consulta.nivel)}`)) {
+                    await geo(consulta.nivel, { fetch: fetchFn, cache: cacheGeo });
+                }
                 renderMapa(resposta, consulta.nivel);
                 return lerEstado(estado);
             } catch (e) {
@@ -628,7 +718,34 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
     preencherOrdenacoes(doc, ORDENS[0].codigo);
     preencherLimites(doc, null);
 
-    return { filtrar, estado: estado_, definirFonte, geo: (n) => geo(n, { fetch: fetchFn, cache: cacheGeo }) };
+    /**
+     * Busca a malha e pinta o mapa em cinza de ausência.
+     *
+     * Existe separada de `filtrar` por um motivo que os testes medem: a spec
+     * §10 pede que a malha venha no carregamento ("malhas são buscadas no load
+     * e memorizadas: são o desenho do mapa, não dados"), mas proíbe que abrir
+     * a página já traga dado ("tudo em branco ao abrir"). São as duas coisas
+     * ao mesmo tempo, e a sépará-las é o que satisfaz as duas — o mapa é
+     * desenhado sem nenhum valor, e nenhum `/api/consulta` sai daqui.
+     *
+     * Por isso `criarApp` NÃO a chama: criar a aplicação não pode buscar
+     * nada. Quem chama é a ponte com o browser, no fim do arquivo, que é o
+     * único lugar que conhece o ambiente global.
+     */
+    async function carregarMapa(nivel) {
+        const alvo = nivel || estado.nivel;
+        const malha = await geo(alvo, { fetch: fetchFn, cache: cacheGeo });
+        renderMapa(null, alvo);
+        return malha;
+    }
+
+    return {
+        filtrar,
+        estado: estado_,
+        definirFonte,
+        carregarMapa,
+        geo: (n) => geo(n, { fetch: fetchFn, cache: cacheGeo }),
+    };
 }
 
 /* ------------------------------------------------------------------ */
@@ -642,5 +759,11 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
  * inerte em node — o import não faz nada, o que mantém os testes sem DOM.
  */
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    window.Dashboard = criarApp({ doc: document, fetch: (...a) => window.fetch(...a) });
+    const app = criarApp({ doc: document, fetch: (...a) => window.fetch(...a) });
+    window.Dashboard = app;
+    /* A malha é buscada no carregamento (spec §10) e o mapa fica cinza. A
+     * promessa vai para o console em caso de falha porque a spec §12 diz que
+     * o erro aparece no dashboard — e o painel já mostra o aviso; aqui é só
+     * para não haver rejeição sem tratamento. */
+    app.carregarMapa().catch(() => {});
 }

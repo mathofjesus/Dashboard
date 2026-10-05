@@ -58,9 +58,10 @@ import {
     donut,
     kpi,
     valorPresente,
+    quatroTicks,
     COR_AUSENCIA,
 } from '../web/charts.js';
-import { plural } from '../web/filters.js';
+import { plural, preencherOpcoes } from '../web/filters.js';
 
 let testes = 0;
 let falhas = 0;
@@ -1663,6 +1664,311 @@ testeAsync('o rótulo do KPI diz "Total de estados" quando o recorte é por UF',
         `o primeiro KPI é "Total de estados"; veio ${JSON.stringify(rotulos)}`);
     assert.ok(!rotulos.some((r) => r === 'Total de municípios'),
         'e não "Total de municípios", que mentiria sobre o recorte');
+});
+
+/* ------------------------------------------------------------------ */
+/* o app liga o mapa (Tarefa 11)                                       */
+/* ------------------------------------------------------------------ */
+
+/* O `map.js` tem 21 testes próprios, e nenhum deles diz que o APP o chama.
+ * Um módulo perfeito e desconectado passa a suíte inteira e não pinta nada
+ * na tela — a mesma classe de buraco que aprovou `ufs: []` na Tarefa 7. Por
+ * isso estes testes exercitam o caminho app → fetch da malha → desenho. */
+
+const MALHA_DOIS = {
+    type: 'FeatureCollection',
+    features: [
+        {
+            type: 'Feature',
+            properties: { codarea: '1100015', centroide: [-62075, -12500] },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[[-63000, -13000], [-61000, -13000], [-61000, -12000],
+                    [-63000, -12000], [-63000, -13000]]],
+            },
+        },
+        {
+            type: 'Feature',
+            properties: { codarea: '3550308', centroide: [-46500, -23500] },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[[-47000, -24000], [-46000, -24000], [-46000, -23000],
+                    [-47000, -23000], [-47000, -24000]]],
+            },
+        },
+    ],
+};
+
+/** Percorre a árvore do DOM falso devolvendo os elementos de uma tag. */
+function tagsDe(raiz, tag) {
+    const alvo = String(tag).toUpperCase();
+    const out = [];
+    const visita = (no) => {
+        if (!no) return;
+        if (no.tagName === alvo) out.push(no);
+        for (const f of no.children || []) visita(f);
+    };
+    visita(raiz);
+    return out;
+}
+
+testeAsync('carregarMapa pinta o mapa em cinza, sem buscar nenhuma consulta', async () => {
+    const { app, doc, fetch } = appDeTeste({ '/api/geo/municipios': { json: MALHA_DOIS } });
+
+    await app.carregarMapa();
+
+    const paths = tagsDe(doc.porId.mapa, 'path');
+    assert.equal(paths.length, 2, `a malha foi desenhada; vieram ${paths.length} <path>`);
+    for (const p of paths) {
+        assert.equal(p.getAttribute('class'), 'mapa-sem-dado',
+            'sem consulta, todo município é ausência');
+    }
+    assert.ok(!fetch.urls().some((u) => u.includes('consulta')),
+        `abrir não busca consulta; veio ${JSON.stringify(fetch.urls())}`);
+});
+
+testeAsync('depois de Filtrar, o município com dado sai da cor de ausência', async () => {
+    const resposta = {
+        total: 2,
+        kpis: { com_dado: 1 },
+        registros: [
+            { cod: '1100015', nome: 'Porto Velho', valor: 5 },
+            { cod: '3550308', nome: 'São Paulo', valor: -1 },
+        ],
+    };
+    const { app, doc } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: resposta },
+    });
+
+    await app.carregarMapa();
+    await app.filtrar();
+
+    const paths = tagsDe(doc.porId.mapa, 'path');
+    assert.equal(paths.length, 2, `o mapa continua desenhado; vieram ${paths.length}`);
+    const comDado = paths.find((p) => p.getAttribute('data-codarea') === '1100015');
+    const semDado = paths.find((p) => p.getAttribute('data-codarea') === '3550308');
+
+    assert.ok(comDado && comDado.getAttribute('fill'),
+        'o município com dado tem cor própria da escala');
+    assert.equal(semDado.getAttribute('class'), 'mapa-sem-dado',
+        'o município com valor -1 continua na cor de ausência');
+});
+
+testeAsync('clicar num município escreve nome e valor no painel', async () => {
+    const resposta = {
+        total: 1,
+        kpis: { com_dado: 1 },
+        registros: [{ cod: '3550308', nome: 'São Paulo', valor: 12345678 }],
+    };
+    const { app, doc } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: resposta },
+    });
+
+    await app.carregarMapa();
+    await app.filtrar();
+
+    const sp = tagsDe(doc.porId.mapa, 'path')
+        .find((p) => p.getAttribute('data-codarea') === '3550308');
+    assert.ok(sp, 'o <path> de São Paulo existe');
+    await sp.click();
+
+    const detalhe = doc.porId.mapa.querySelector('.mapa-detalhe');
+    assert.ok(detalhe, 'o clique escreveu o painel de detalhe');
+    assert.ok(detalhe.textContent.includes('São Paulo'),
+        `com o nome acentuado; veio "${detalhe.textContent}"`);
+    assert.ok(detalhe.textContent.includes('12.345.678'),
+        `e com o valor formatado em pt-BR; veio "${detalhe.textContent}"`);
+});
+
+testeAsync('Filtrar sem esperar carregarMapa ainda pinta o mapa', async () => {
+    /* A corrida: a ponte com o browser dispara `carregarMapa` sem esperar, e um
+     * clique em Filtrar pode chegar antes de ela resolver. Sem a espera dentro
+     * de `filtrar`, o primeiro mapa da sessão saía como o aviso "sem dados"
+     * com a consulta completa desenhada ao lado. */
+    const resposta = {
+        total: 1,
+        kpis: { com_dado: 1 },
+        registros: [{ cod: '1100015', nome: 'Porto Velho', valor: 5 }],
+    };
+    const { app, doc } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: resposta },
+    });
+
+    /* Sem chamar app.carregarMapa(): é o clique que tem que trazer a malha. */
+    await app.filtrar();
+
+    const paths = tagsDe(doc.porId.mapa, 'path');
+    assert.equal(paths.length, 2, `o mapa foi pintado; vieram ${paths.length} <path>`);
+    assert.ok(!/Sem dados/.test(doc.porId.mapa.textContent),
+        `e não é o aviso de vazio; veio "${doc.porId.mapa.textContent}"`);
+});
+
+testeAsync('a segunda consulta não busca a malha de novo', async () => {
+    const resposta = {
+        total: 1,
+        kpis: { com_dado: 1 },
+        registros: [{ cod: '1100015', nome: 'Porto Velho', valor: 5 }],
+    };
+    const { app, fetch } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: resposta },
+    });
+
+    await app.filtrar();
+    await app.filtrar();
+
+    const geos = fetch.urls().filter((u) => u.includes('/api/geo/'));
+    assert.equal(geos.length, 1,
+        `a malha é o desenho do mapa e fica memorizada; buscada ${geos.length} vezes`);
+});
+
+testeAsync('clicar num município sem dado diz "sem dado", e não 0', async () => {
+    const resposta = {
+        total: 1,
+        kpis: { com_dado: 0 },
+        registros: [{ cod: '1100015', nome: 'Porto Velho', valor: -1 }],
+    };
+    const { app, doc } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: resposta },
+    });
+
+    await app.carregarMapa();
+    await app.filtrar();
+    const pv = tagsDe(doc.porId.mapa, 'path')
+        .find((p) => p.getAttribute('data-codarea') === '1100015');
+    await pv.click();
+
+    const detalhe = doc.porId.mapa.querySelector('.mapa-detalhe');
+    assert.ok(detalhe, 'o clique escreveu o detalhe');
+    assert.ok(/sem dado/.test(detalhe.textContent),
+        `diz "sem dado"; veio "${detalhe.textContent}"`);
+    assert.ok(!/\b0\b/.test(detalhe.textContent),
+        `e nunca 0 como valor; veio "${detalhe.textContent}"`);
+});
+
+/* ------------------------------------------------------------------ */
+/* o eixo Y precisa caber na margem, e a legenda precisa concordar   */
+/* ------------------------------------------------------------------ */
+
+/* Achados C1 e C2 da revisão da Tarefa 10, ambos medidos no navegador e
+ * nenhum pego pelos 118 testes que existiam.
+ *
+ * C1: a margem esquerda era fixa em 28px e o rótulo é ancorado em
+ * `x = margem - 4` com `text-anchor: end`. "46,6 mi" tem ~38px, então saía
+ * pela esquerda do viewBox — e o SVG recorta por padrão. A linha lia
+ * "6 mi / 4 mi / 1 mi / 9 mi / 6 mi" em vez dos valores de verdade.
+ *
+ * C2: os arcos do anel saíam sem `cor` e a legenda fazia `a.cor || AUSENCIA`,
+ * então toda fatia tinha o quadradinho cinza de "sem dado" com o arco verde. */
+
+const PX_POR_CHAR_EIXO = 5.4;   /* o que .eixo-valor mede: monoespaçada 9px */
+
+teste('a margem esquerda cabe o rótulo mais largo do eixo Y', () => {
+    /* A série real de São Paulo: 37,6 a 46,6 milhões. */
+    const g = geometriaLinha(paresDaSerie(SERIE_SP));
+    const rotulos = quatroTicks(g.dominio.min, g.dominio.max).map((t) => abreviaNumero(t));
+    const maisLargo = Math.max(...rotulos.map((r) => r.length * PX_POR_CHAR_EIXO));
+
+    assert.ok(maisLargo > 24,
+        `o rótulo de verdade é mais largo que a margem antiga: ${maisLargo.toFixed(1)}px`);
+    assert.ok(g.margem >= maisLargo + 4,
+        `a margem (${g.margem}) cabe o rótulo (${maisLargo.toFixed(1)}px) mais o deslocamento de 4`);
+    assert.ok(g.margem * 2 < g.largura,
+        `e não come o gráfico inteiro: margem ${g.margem} de largura ${g.largura}`);
+});
+
+teste('nenhum rótulo do eixo Y começa fora do viewBox, por construção', () => {
+    for (const serie of [paresDaSerie(SERIE_SP), [{ r: 2024, v: 1 }], [{ r: 2024, v: 11895578 }]]) {
+        const g = geometriaLinha(serie);
+        for (const t of quatroTicks(g.dominio.min, g.dominio.max)) {
+            const larguraRotulo = abreviaNumero(t).length * PX_POR_CHAR_EIXO;
+            const xEsquerdo = g.margem - 4 - larguraRotulo;
+            assert.ok(xEsquerdo >= 0,
+                `"${abreviaNumero(t)}" começa em ${xEsquerdo.toFixed(1)} e sai do viewBox`);
+        }
+    }
+});
+
+teste('as barras também abrem espaço para o rótulo do eixo', () => {
+    const g = geometriaBarras([{ nome: 'São Paulo', valor: 11895578 }], {});
+    const rotulos = quatroTicks(0, 11895578).map((t) => abreviaNumero(t));
+    const maisLargo = Math.max(...rotulos.map((r) => r.length * PX_POR_CHAR_EIXO));
+    assert.ok(g.margem >= maisLargo + 4,
+        `a margem das barras (${g.margem}) cabe "${maisLargo > 0 ? rotulos.join('" "') : ''}"`);
+});
+
+teste('barras todas zero põem o zero na base, e não no meio', () => {
+    /* I5: com domínio 0..0 a escala degenerava para o meio da faixa, e o "0"
+     * da grade ficava 72px acima das barras, que estavam com altura 0. */
+    const g = geometriaBarras([{ nome: 'A', valor: 0 }, { nome: 'B', valor: 0 }], {});
+    assert.equal(g.dominio.max, 0, 'o maior valor é zero mesmo');
+    assert.ok(Math.abs(g.escalaY(0) - g.base) < 0.01,
+        `o zero da escala fica na base das barras; base=${g.base}, escalaY(0)=${g.escalaY(0)}`);
+    assert.deepEqual(g.ticks, [0], 'e a grade mostra só o zero, na base');
+});
+
+teste('a legenda do anel usa a cor de cada arco, e não a cor de ausência', () => {
+    const fatias = fatiasDonut([
+        { rotulo: 'com dado', valor: 4000 },
+        { rotulo: 'sem dado', valor: 1570 },
+    ]);
+    const g = geometriaDonut(fatias, {});
+    assert.ok(g.arcos.length >= 1, `há arcos; vieram ${g.arcos.length}`);
+
+    for (let i = 0; i < g.arcos.length; i++) {
+        assert.ok(g.arcos[i].cor, `o arco ${i} tem cor própria`);
+        assert.notEqual(g.arcos[i].cor, COR_AUSENCIA,
+            `a fatia ${i} não é a cor de ausência; veio "${g.arcos[i].cor}"`);
+        assert.equal(g.arcos[i].cor, g.cores[i % g.cores.length],
+            'e é exatamente a cor que o desenho pinta no arco — legenda e desenho não podem divergir');
+    }
+});
+
+testeAsync('o quadradinho da legenda sai com a cor do arco', async () => {
+    const doc = criaDoc();
+    const el = doc.createElement('div');
+    const fatias = fatiasDonut([
+        { rotulo: 'com dado', valor: 4000 },
+        { rotulo: 'sem dado', valor: 1570 },
+    ]);
+    donut(el, fatias, { doc });
+
+    const marcas = [];
+    const visita = (no) => {
+        if (no.className === 'legenda-cor') marcas.push(no.getAttribute('data-cor'));
+        for (const f of no.children || []) visita(f);
+    };
+    visita(el);
+
+    assert.ok(marcas.length >= 2, `a lista tem as duas fatias; vieram ${marcas.length}`);
+    for (const m of marcas) {
+        assert.notEqual(m, COR_AUSENCIA,
+            `nenhum quadradinho em cinza de ausência; veio "${m}"`);
+    }
+    assert.equal(new Set(marcas).size, marcas.length,
+        `e cada fatia com a sua cor; vieram ${JSON.stringify(marcas)}`);
+});
+
+/* ------------------------------------------------------------------ */
+/* o ano inicial é o mais recente, e não o mais antigo                 */
+/* ------------------------------------------------------------------ */
+
+/* I7: o comentário em filters.js dizia "usa o mais recente" e o código usava
+ * `anos[0]` de uma lista crescente — ou seja, 2001. */
+teste('o ano selecionado por padrão é o mais recente', () => {
+    const doc = criaDoc();
+    const select = doc.porId.ano;
+    select.value = '';
+    /* O que /api/opcoes devolve: 22 anos em ordem crescente. */
+    const anos = [2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009, 2011, 2012,
+        2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2024];
+    preencherOpcoes(doc, { anos, ufs: [] }, 'todos', '');
+    assert.equal(select.value, '2024',
+        `com a lista em ordem crescente, o ano escolhido é o maior; veio "${select.value}"`);
 });
 
 /* ================================================================== */

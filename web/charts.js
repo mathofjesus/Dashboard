@@ -406,6 +406,42 @@ const MARGEM = 28;
 const ESPESSURA_DONUT = 26;
 
 /**
+ * Largura estimada de um caractere no rótulo do eixo, em pixels.
+ *
+ * O rótulo usa `.eixo-valor` (styles.css): `--fonte-num` a 9px com
+ * `tabular-nums`. Monoespaçada a 9px avança 0,6 em, ou seja 5,4px por
+ * caractere — medido no navegador: "46,6 mi" (7 caracteres) deu 37,9px de
+ * `getBBox()`, e 7 × 5,4 = 37,8.
+ *
+ * É estimativa, e tem que ser: a geometria é calculada em node, sem DOM e
+ * sem medir texto. A margem é arredondada para cima, então sobrar uns pixels é
+ * certo e faltar um não é.
+ */
+const PX_POR_CHAR_EIXO = 5.4;
+
+/**
+ * A margem esquerda que o eixo Y precisa para não perder o rótulo.
+ *
+ * Ache C1 da revisão da Tarefa 10: `MARGEM` era fixa em 28px e o rótulo é
+ * ancorado em `x = margem - 4` com `text-anchor: end`, então qualquer rótulo
+ * mais largo que 24px saía pela esquerda do viewBox — e o SVG recorta por
+ * padrão. No navegador a linha lia "6 mi / 4 mi / 1 mi / 9 mi / 6 mi" em vez
+ * de 46,6 / 44,4 / 42,1 / 39,9 / 37,6: não só o primeiro dígito sumia, como o
+ * que sobrava formava números que não existem. E o eixo da linha é justamente
+ * o que declara que a escala NÃO começa em zero, então perder o valor é
+ * perder a única coisa que honestiza a escolha.
+ */
+function margemDoEixo(rotulos) {
+    let maior = 0;
+    for (const r of rotulos || []) {
+        const n = String(r).length * PX_POR_CHAR_EIXO;
+        if (n > maior) maior = n;
+    }
+    /* +4 pelo deslocamento do `x` e +6 de folga, arredondado para cima. */
+    return Math.max(MARGEM, Math.ceil(maior) + 10);
+}
+
+/**
  * Geometria da linha do tempo.
  *
  * A escala Y vai do menor ao maior valor **com dado**, e não do zero: a
@@ -417,7 +453,13 @@ const ESPESSURA_DONUT = 26;
 export function geometriaLinha(pontos, opcoes = {}) {
     const largura = opcoes.largura ?? LARGURA_PADRAO;
     const altura = opcoes.altura ?? ALTURA_LINHA;
-    const margem = opcoes.margem ?? MARGEM;
+
+    /* O domínio e os degraus vêm ANTES da margem, porque é a largura do
+     * rótulo mais largo que decide a margem (achado C1). A ordem antiga —
+     * margem fixa, ticks depois — era o que cortava o texto. */
+    const dom = dominioValores(pontos);
+    const ticks = quatroTicks(dom ? dom.min : 0, dom ? dom.max : 1);
+    const margem = opcoes.margem ?? margemDoEixo(ticks.map((t) => abreviaNumero(t)));
     const base = altura - margem;
 
     const segmentos = segmentosLinha(pontos);
@@ -428,7 +470,6 @@ export function geometriaLinha(pontos, opcoes = {}) {
     const anoMax = anos.length ? Math.max(...anos) : 0;
 
     const px = escalaLinear(anoMin, anoMax, margem, largura - margem);
-    const dom = dominioValores(pontos);
     const py = escalaLinear(dom ? dom.min : 0, dom ? dom.max : 1, base, margem);
 
     return {
@@ -466,8 +507,6 @@ export function geometriaLinha(pontos, opcoes = {}) {
 export function geometriaBarras(itens, opcoes = {}) {
     const largura = opcoes.largura ?? LARGURA_PADRAO;
     const altura = opcoes.altura ?? ALTURA_BARRAS;
-    const margem = opcoes.margem ?? MARGEM;
-    const base = altura - margem;
     const maximo = Number.isFinite(opcoes.maximo) && opcoes.maximo > 0
         ? Math.floor(opcoes.maximo) : 10;
 
@@ -488,7 +527,21 @@ export function geometriaBarras(itens, opcoes = {}) {
         if (valorPresente(it.valor)) maior = Math.max(maior, Number(it.valor));
     }
 
-    const py = escalaLinear(0, maior, base, margem);
+    /* `maior` só existe depois da normalização, e é dele que sai o rótulo mais
+     * largo do eixo Y — por isso a margem vem aqui, e não antes. Mesma
+     * correção do achado C1, e pelo mesmo motivo: "11,9 mi" é 38px e a
+     * margem fixa de 28px cortava o primeiro dígito. */
+    /* I5: com todos os valores zero, o domínio 0..0 faz `escalaLinear` cair no
+     * caso degenerado e devolver o MEIO da faixa — então o "0" da grade era
+     * desenhado 72px acima das barras, que estavam com altura 0 na base. O
+     * leitor era informado que zero estava no meio do gráfico. Quando não há
+     * valor nenhum, o topo do domínio vai a 1 (escala arbitrária, mas o zero
+     * fica onde as barras estão) e a grade mostra só o "0" da base. */
+    const ticks = maior > 0 ? quatroTicks(0, maior) : [0];
+    const margem = opcoes.margem ?? margemDoEixo(ticks.map((t) => abreviaNumero(t)));
+    const base = altura - margem;
+
+    const py = escalaLinear(0, maior > 0 ? maior : 1, base, margem);
     const vao = normalizados.length ? (largura - 2 * margem) / normalizados.length : 0;
     const larguraBarra = vao > 0 ? Math.max(2, vao * 0.66) : 0;
     const alturaMaxRotulo = opcoes.altura ?? ALTURA_BARRAS;
@@ -530,7 +583,7 @@ export function geometriaBarras(itens, opcoes = {}) {
         barras,
         /* Escala do eixo Y em quatro degraus: a altura do maior valor tem de
          * aparecer como número, não só como comprimento de barra. */
-        ticks: quatroTicks(0, maior),
+        ticks,
     };
 }
 
@@ -579,12 +632,23 @@ export function geometriaDonut(fatias, opcoes = {}) {
         });
     }
 
+    const cores = coresCategoricas(arcos.length);
+    /* Ache C2 da revisão da Tarefa 10: os arcos saíam sem `cor`, e a legenda
+     * lia `a.cor || COR_AUSENCIA` — então TODA fatia aparecia com o quadrado
+     * cinza de ausência, enquanto o arco era verde. No navegador: anel verde
+     * com legenda cinza. A cor é atribuída aqui, pelo MESMO índice que
+     * `desenharDonut` usa para pintar o arco, porque a legenda e o desenho
+     * discordarem é justamente o defeito. */
+    for (let i = 0; i < arcos.length; i++) {
+        arcos[i].cor = cores[i % cores.length];
+    }
+
     return {
         tamanho, espessura, raio,
         anel: { cx, cy, raio, espessura },
         arcos,
         vazio: arcos.length === 0,
-        cores: coresCategoricas(arcos.length),
+        cores,
     };
 }
 
