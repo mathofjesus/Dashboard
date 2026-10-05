@@ -28,7 +28,6 @@ void test_zip(void);
 void test_csv(void);
 void test_http_client(void);
 void test_fontes(void);
-void test_modelo(void);
 void test_model(void);
 void test_aggregate(void);
 void test_api(void);
@@ -73,9 +72,6 @@ int main(int argc, char **argv)
 
     cabecalho("fontes");
     test_fontes();
-
-    cabecalho("modelo");
-    test_modelo();
 
     cabecalho("model");
     test_model();
