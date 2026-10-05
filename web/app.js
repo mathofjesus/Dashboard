@@ -81,8 +81,11 @@ export function estadoInicial() {
         ano: null,
         uf: '',
         total: 0,
-        dados: [],
+        /* `registros` é o nome da spec §8: a resposta traz a tabela em
+         * `registros`, e o front consome o contrato, não um apelido. */
+        registros: [],
         kpis: null,
+        serie: null,
         opcoesCarregadas: false,
     };
 }
@@ -118,8 +121,9 @@ export function lerEstado(interno) {
         ano: interno.ano,
         uf: interno.uf,
         total: interno.total,
-        dados: interno.dados.slice(),
+        registros: interno.registros.slice(),
         kpis: interno.kpis ? { ...interno.kpis } : null,
+        serie: interno.serie ? interno.serie.slice() : null,
         opcoesCarregadas: interno.opcoesCarregadas,
     };
 }
@@ -210,6 +214,9 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
             ['Máximo', src.max, ''],
             ['Média', src.media, ''],
         ];
+        /* `min`/`max`/`media` vêm de `kpis` e só existem quando houve valor
+         * no ano (I4: um ausente não é 0). Sem dado, os cartões ficam "--",
+         * que é o que `textoOpcoes(null)` escreve — nunca "0". */
         /* Reaproveita os cartões que já existem no HTML e só troca o texto,
          * para não reconstruir a estrutura a cada consulta.
          *
@@ -234,14 +241,15 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
         return painel;
     }
 
-    /** Tabela com os dados da consulta. */
-    function renderTabela(dados) {
+    /** Tabela com os registros da consulta. */
+    function renderTabela(registros) {
         const alvo = doc.getElementById('tabela');
         if (!alvo) return;
         while (alvo.firstChild) alvo.removeChild(alvo.firstChild);
-        if (!dados || !dados.length) {
-            alvo.appendChild(doc.createElement ? doc.createElement('p') : doc.createElement('p'));
-            alvo.lastChild.textContent = 'Nenhum município para estos filtros.';
+        if (!registros || !registros.length) {
+            const aviso = doc.createElement('p');
+            aviso.textContent = 'Nenhum município para estes filtros.';
+            alvo.appendChild(aviso);
             return;
         }
         const tabela = doc.createElement('table');
@@ -256,7 +264,7 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
         tabela.appendChild(cab);
 
         const corpo = doc.createElement('tbody');
-        for (const d of dados) {
+        for (const d of registros) {
             const tr = doc.createElement('tr');
             const nome = doc.createElement('td');
             nome.textContent = d && d.nome ? d.nome : '--';
@@ -279,7 +287,7 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
         const painel = doc.getElementById('graficos');
         if (!painel) return;
         while (painel.firstChild) painel.removeChild(painel.firstChild);
-        const n = resposta && Array.isArray(resposta.dados) ? resposta.dados.length : 0;
+        const n = resposta && Array.isArray(resposta.registros) ? resposta.registros.length : 0;
         /* O indicador na tela é o rótulo com acento, não o token que vai na
          * query: "populacao" lido em tela é a fonte sem acento voltando. */
         const rotulo = rotuloIndicador(f.indicador);
@@ -409,7 +417,7 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
 
                 /* Sem ano não há consulta possível, e a que o servidor faria
                  * seria recusada com um 400. Melhor dizer por que logo aqui:
-                 * deixar "ano  invalido" na tela não ajuda ninguém a
+                 * deixar "ano inválido" na tela não ajuda ninguém a
                  * descobrir que o motivo é não haver dado processado. */
                 if (ano === null) {
                     return renderErro(
@@ -429,15 +437,20 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
                 estado.uf = uf;
                 estado.indicador = consulta.indicador;
                 estado.nivel = consulta.nivel;
+                /* A spec §8: `total` é o do conjunto (não o da página),
+                 * `kpis` é um objeto e `registros` é a tabela. Ler o `total`
+                 * de dentro de `kpis`, que é onde ele estava, fazia o cartão
+                 * dizer o número de linhas da página. */
                 estado.total = resposta && typeof resposta.total === 'number' ? resposta.total : 0;
-                estado.dados = (resposta && Array.isArray(resposta.dados)) ? resposta.dados : [];
-                estado.kpis = resposta
-                    ? { total: resposta.total, min: resposta.min, max: resposta.max, media: resposta.media, soma: resposta.soma }
-                    : null;
+                estado.registros = (resposta && Array.isArray(resposta.registros))
+                    ? resposta.registros : [];
+                estado.kpis = resposta && resposta.kpis && typeof resposta.kpis === 'object'
+                    ? resposta.kpis : null;
+                estado.serie = resposta && Array.isArray(resposta.serie) ? resposta.serie : null;
 
                 renderKpis({ total: estado.total, ...(estado.kpis || {}) });
                 renderGraficos(resposta, consulta);
-                renderTabela(estado.dados);
+                renderTabela(estado.registros);
                 renderMapa(resposta);
                 return lerEstado(estado);
             } catch (e) {

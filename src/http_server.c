@@ -746,8 +746,10 @@ void http_handle_client(int fd, const char *web_root)
         corpo = res.body ? strdup(res.body) : NULL;
         n_corpo = corpo ? (size_t)res.length : 0;
         res.body = corpo;
-        /* gzip para respostas API com corpo */
-        if (res.status == 200 && aceita_gzip(req.accept_encoding) && corpo && n_corpo >= 0) {
+        /* gzip para respostas API com corpo. `n_corpo >= 0` era uma tautologia
+         * sobre um `size_t` e o compilador avisava: a condição que importa é
+         * haver corpo. */
+        if (res.status == 200 && aceita_gzip(req.accept_encoding) && corpo) {
             unsigned char *gz = gzip_mem((const unsigned char *)corpo, n_corpo, &n_corpo);
             if (gz) {
                 free(corpo);
@@ -816,6 +818,24 @@ void http_handle_client(int fd, const char *web_root)
 envia:
     envia_resposta(fd, &res, extra, so_cabecalho);
     free(corpo);
+    /* SHUT_WR antes de close(), e não close() direto.
+     *
+     * Sem o shutdown, o close() de um socket que ainda tem dados a enviar
+     * depende de o kernel conseguir esvaziar o buffer de saída antes de
+     * mandar o FIN. Quando não consegue — resposta grande, buffer cheio,
+     * cliente que não leu — ele manda RST em vez de FIN, e o cliente vê
+     * "conexão reiniciada" no meio do corpo, mesmo tendo recebido todos os
+     * bytes.
+     *
+     * Isso não é teórico: `curl` e o navegador aguentam, e o `fetch` do node
+     * (undici) NÃO — ele estourava com `assert(!this.paused)` ao ler
+     * `/api/geo/municipios`, que é 290 KB comprimidos. Nenhuma ferramenta de
+     * teste feita em node conseguia ler a geometria, que é justamente a
+     * resposta que o mapa consome.
+     *
+     * O shutdown diz "acabei de escrever" explicitamente; o close vem depois
+     * e só libera o descritor. */
+    shutdown(fd, SHUT_WR);
     close(fd);
 }
 
@@ -858,7 +878,7 @@ static void instala_tratadores(void)
     sigaction(SIGPIPE, &sa, NULL);
 }
 
-int http_listen_and_serve(int porta, const char *web_root)
+int http_prepara_servidor(int porta)
 {
     int srv, opt = 1;
     struct sockaddr_in addr;
@@ -887,6 +907,12 @@ int http_listen_and_serve(int porta, const char *web_root)
         close(srv);
         return -1;
     }
+    return srv;
+}
+
+int http_serve_loop(int srv, const char *web_root)
+{
+    if (srv < 0) return -1;
 
     instala_tratadores();
 
@@ -915,4 +941,13 @@ int http_listen_and_serve(int porta, const char *web_root)
 
     close(srv);
     return -1;
+}
+
+int http_listen_and_serve(int porta, const char *web_root)
+{
+    int srv = http_prepara_servidor(porta);
+
+    if (srv < 0)
+        return -1;
+    return http_serve_loop(srv, web_root);
 }

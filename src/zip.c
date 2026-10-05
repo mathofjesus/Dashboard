@@ -105,7 +105,6 @@ int zip_lista(const char *caminho, zip_entrada **saida, size_t *nsaida) {
     }
     unsigned char *eocd = buf + eocd_off;
     uint16_t total_entries = read_u16_le(eocd + 10);
-    uint32_t cd_size = read_u32_le(eocd + 12);
     uint32_t cd_offset = read_u32_le(eocd + 16);
 
     unsigned char *cd = buf + cd_offset;
@@ -114,19 +113,17 @@ int zip_lista(const char *caminho, zip_entrada **saida, size_t *nsaida) {
         free(buf);
         return -1;
     }
-    for (uint16_t i = 0; i < total_entries; i++) {
-        unsigned char *e = cd + i * 46; /* mínimo CD sem name/extra/comment - mas precisamos pular */
-        /* melhor ler dinamicamente */
-        size_t pos = 0;
-        uint32_t sig = read_u32_le(cd + pos);
-        if (sig != CENTRAL_DIR_SIG) {
-            /* tenta avançar conforme campos */
-        }
-        pos = 0;
-        /* reset - lemos por índice: calcular offset real */
-    }
 
-    /* abordagem: iterar por ponteiros */
+    /* Itera por ponteiro, e não por índice: o registro de diretório central
+     * tem tamanho variável (nome + extra + comentário), então "i * 46" só dá
+     * a posição certa quando os três campos são vazios — que é o caso do ZIP
+     * mínimo do teste e não o caso de um CSV do Ministério da Saúde.
+     *
+     * Havia aqui um laço de tentativa por índice fixo, com o corpo comentado
+     * ("melhor ler dinamicamente", "reset") e nada sendo feito: ele não
+     * escrevia em `lista` e não alterava nada, e o compilador avisava das duas
+     * variáveis que ele declarava sem usar. A abordagem por ponteiro, logo
+     * abaixo, é a que funciona. */
     unsigned char *p = cd;
     size_t out_n = 0;
     for (uint16_t i = 0; i < total_entries && out_n < (size_t)total_entries; i++) {
