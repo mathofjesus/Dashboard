@@ -302,7 +302,7 @@ teste('filtros não são populados no carregamento', () => {
 
 await testeAsync('filtrar() chama fetch; sem ele, nada é buscado', async () => {
     const { app, fetch } = appDeTeste({
-        '/api/consulta': { json: { total: 1, dados: [{ cod: '1100205', nome: 'Porto Velho', valor: 10 }] } },
+        '/api/consulta': { json: { total: 1, registros: [{ cod: '1100205', nome: 'Porto Velho', valor: 10 }] } },
     });
     assert.equal(fetch.quantidade(), 0);
     await app.filtrar();
@@ -313,7 +313,7 @@ await testeAsync('filtrar() chama fetch; sem ele, nada é buscado', async () => 
 
 await testeAsync('filtrar() desabilita o botão e o reabilita no fim', async () => {
     const { app, doc } = appDeTeste({
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     });
     const botao = doc.porId.filtrar;
     assert.equal(botao.disabled, false, 'botão começa habilitado');
@@ -323,7 +323,7 @@ await testeAsync('filtrar() desabilita o botão e o reabilita no fim', async () 
 
 await testeAsync('filtrar() mostra carregando durante a consulta', async () => {
     const { app } = appDeTeste({
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     });
     assert.equal(app.estado().carregando, false, 'não começa carregando');
     await app.filtrar();
@@ -332,7 +332,7 @@ await testeAsync('filtrar() mostra carregando durante a consulta', async () => {
 
 await testeAsync('consulta leva todos os filtros escolhidos', async () => {
     const { app, doc, fetch } = appDeTeste({
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     }, { fonte: 'ibge', uf: 'RO', ano: '2024', indicador: 'populacao', nivel: 'municipio', ordenar: 'valor_desc', busca: 'Porto' });
     /* O painel se normaliza ao ser construído (preenche os catálogos e escolhe
      * um limite padrão), então o que se quer testar é o valor escolhido depois
@@ -429,7 +429,7 @@ teste('consulta sem ano não manda ano=0', async () => {
      * parse ingênuo transforma isso em 0 — que o servidor rejeita com um 400
      * confuso. Aqui a consulta tem que omitir o parâmetro. */
     const { app, fetch } = appDeTeste({
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     }, { ano: '' });
     await app.filtrar();
     const url = fetch.chamadas.map((c) => c.url).find((u) => u.includes('consulta')) || '';
@@ -439,7 +439,7 @@ teste('consulta sem ano não manda ano=0', async () => {
 
 teste('limite vazio não vira limite=0', async () => {
     const { app, fetch } = appDeTeste({
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     }, { limite: '' });
     await app.filtrar();
     const url = fetch.chamadas.map((c) => c.url).find((u) => u.includes('consulta')) || '';
@@ -522,7 +522,7 @@ await testeAsync('na segunda consulta, o ano trocado pelo usuário é respeitado
      * usuário é sobrescrita sem ele perceber. */
     const { app, doc, fetch } = appDeTeste({
         '/api/opcoes': { json: { anos: [2024, 2021, 2010], ufs: ['RO', 'SP'] } },
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     }, { ano: '2024' });
     await app.filtrar();
     doc.porId.ano.value = '2010';
@@ -540,7 +540,7 @@ await testeAsync('na segunda consulta, o ano trocado pelo usuário é respeitado
 
 await testeAsync('o clique no botão Filtrar é o gatilho da busca', async () => {
     const { app, doc, fetch } = appDeTeste({
-        '/api/consulta': { json: { total: 1, dados: [] } },
+        '/api/consulta': { json: { total: 1, registros: [] } },
     });
     assert.equal(fetch.quantidade(), 0, 'antes do clique, rede intocada');
     await doc.porId.filtrar.click();
@@ -549,7 +549,7 @@ await testeAsync('o clique no botão Filtrar é o gatilho da busca', async () =>
 });
 
 await testeAsync('digitar no formulário não busca nada sozinho', async () => {
-    const { app, doc, fetch } = appDeTeste({ '/api/consulta': { json: { total: 0, dados: [] } } });
+    const { app, doc, fetch } = appDeTeste({ '/api/consulta': { json: { total: 0, registros: [] } } });
     doc.porId.busca.value = 'Porto Velho';
     doc.porId.ano.value = '2024';
     assert.equal(fetch.quantidade(), 0, 'mexer nos campos não busca');
@@ -568,8 +568,7 @@ await testeAsync('consulta com dados preenche os KPIs, sem zero para ausente', a
         '/api/opcoes': { json: { anos: [2024], ufs: [] } },
         '/api/consulta': {
             json: {
-                total: 2, min: 100, max: 900, media: 500, soma: 1000,
-                dados: [
+                kpis: { min: 100, max: 900, media: 500, soma: 1000, com_dado: 2 }, total: 2, registros: [
                     { cod: '1100205', nome: 'Porto Velho', valor: 900 },
                     { cod: '1100155', nome: 'Ji-Paraná', valor: -1 },
                 ],
@@ -580,7 +579,7 @@ await testeAsync('consulta com dados preenche os KPIs, sem zero para ausente', a
     assert.equal(app.estado().consultado, true);
     assert.equal(app.estado().total, 2);
     assert.equal(app.estado().kpis.max, 900);
-    assert.equal(app.estado().dados.length, 2);
+    assert.equal(app.estado().registros.length, 2);
     assert.equal(textoOpcoes(-1), '--', 'valor ausente não vira 0 na tela');
 });
 
@@ -592,7 +591,7 @@ await testeAsync('os cartões de KPI são preenchidos na tela, não só no estad
     const { app, doc } = appDeTeste({
         '/api/opcoes': { json: { anos: [2024], ufs: [] } },
         '/api/consulta': {
-            json: { total: 3, min: 1746227, max: 1796460, media: 1770000, soma: 5310000, dados: [] },
+            json: { kpis: { min: 1746227, max: 1796460, media: 1770000, soma: 5310000, com_dado: 3 }, total: 3, registros: [] },
         },
     }, { ano: '2024' });
     await app.filtrar();
@@ -616,7 +615,7 @@ await testeAsync('os cartões de KPI são preenchidos na tela, não só no estad
 await testeAsync('voltar ao branco depois de consultar restaura os "--"', async () => {
     const { app, doc } = appDeTeste({
         '/api/opcoes': { json: { anos: [2024], ufs: [] } },
-        '/api/consulta': { json: { total: 3, min: 1, max: 9, media: 5, soma: 15, dados: [] } },
+        '/api/consulta': { json: { kpis: { min: 1, max: 9, media: 5, soma: 15, com_dado: 3 }, total: 3, registros: [] } },
     }, { ano: '2024' });
     await app.filtrar();
     assert.ok(!doc.porId.kpis.querySelectorAll('.kpi')[0]
@@ -636,7 +635,7 @@ await testeAsync('voltar ao branco depois de consultar restaura os "--"', async 
 await testeAsync('o texto do gráfico usa o rótulo com acento, não o token cru', async () => {
     const { app, doc } = appDeTeste({
         '/api/opcoes': { json: { anos: [2024], ufs: [] } },
-        '/api/consulta': { json: { total: 1, min: 1, max: 2, media: 2, soma: 2, dados: [{ cod: '1100205', nome: 'Porto Velho', valor: 2 }] } },
+        '/api/consulta': { json: { kpis: { min: 1, max: 2, media: 2, soma: 2, com_dado: 1 }, total: 1, registros: [{ cod: '1100205', nome: 'Porto Velho', valor: 2 }] } },
     }, { ano: '2024', indicador: 'populacao' });
     await app.filtrar();
     const txt = doc.porId.graficos.textContent;
@@ -658,7 +657,9 @@ await testeAsync('dados com acento preservam o nome vindo do servidor', async ()
         '/api/opcoes': { json: { anos: [2024], ufs: [] } },
         '/api/consulta': {
             json: {
-                total: 2, min: 1, max: 2, dados: [
+                kpis: { min: 1, max: 2, media: 1, soma: 3, com_dado: 2 },
+                total: 2,
+                registros: [
                     { cod: '1100155', nome: 'Ji-Paraná', valor: 1 },
                     { cod: '2914800', nome: 'Ilhéus', valor: 2 },
                 ],
@@ -666,7 +667,7 @@ await testeAsync('dados com acento preservam o nome vindo do servidor', async ()
         },
     }, { ano: '2024' });
     await app.filtrar();
-    const nomes = app.estado().dados.map((d) => d.nome);
+    const nomes = app.estado().registros.map((d) => d.nome);
     assert.ok(nomes.includes('Ji-Paraná'), `acento preservado: ${nomes}`);
     assert.ok(nomes.includes('Ilhéus'), `acento preservado: ${nomes}`);
 });
@@ -677,7 +678,7 @@ await testeAsync('dados com acento preservam o nome vindo do servidor', async ()
 
 await testeAsync('dois filtrar() seguidos somam uma requisição', async () => {
     const { app, fetch } = appDeTeste({
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     });
     await Promise.all([app.filtrar(), app.filtrar()]);
     const consultas = fetch.urls().filter((u) => u.includes('consulta'));
@@ -687,7 +688,7 @@ await testeAsync('dois filtrar() seguidos somam uma requisição', async () => {
 
 await testeAsync('depois de uma consulta, um novo filtrar() busca de novo', async () => {
     const { app, fetch } = appDeTeste({
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     });
     await app.filtrar();
     await app.filtrar();
@@ -702,7 +703,7 @@ await testeAsync('depois de uma consulta, um novo filtrar() busca de novo', asyn
 await testeAsync('trocar de fonte busca as opções da nova fonte', async () => {
     const { app, fetch } = appDeTeste({
         '/api/opcoes': { json: { anos: [2024], ufs: [] } },
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     });
     await app.filtrar();
     assert.equal(app.estado().opcoesCarregadas, true);
@@ -767,7 +768,7 @@ teste('fonte ibge oferece só indicadores IBGE; saude, só os de saúde', () => 
 
 await testeAsync('indicaores são filtrados pela fonte escolhida', async () => {
     const { app, doc, fetch } = appDeTeste({
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     }, { fonte: 'ibge' });
     await app.definirFonte('ibge');
     assert.ok(fetch.quantidade() === 0, 'trocar fonte não busca');
@@ -798,7 +799,7 @@ await testeAsync('definirFonte com fonte desconhecida mantém a atual', async ()
 await testeAsync('anos e ufs do servidor preenchem os seletores', async () => {
     const { app, doc } = appDeTeste({
         '/api/opcoes': { json: { anos: [2024, 2021, 2010], ufs: ['RO', 'SP'] } },
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     });
     await app.filtrar();
     const anos = doc.porId.ano.children.map((o) => o.value);
@@ -815,7 +816,7 @@ await testeAsync('sem ano disponível, diz por que em vez de deixar o 400 do ser
      * e mandar o request mesmo assim só rende um 400 críptico. */
     const { app, doc, fetch } = appDeTeste({
         '/api/opcoes': { json: { anos: [], ufs: [] } },
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     }, { ano: '' });
     await app.filtrar();
     assert.equal(app.estado().consultado, false, 'não houve consulta, logo não há resultado');
@@ -837,7 +838,7 @@ await testeAsync('sem ano disponível, diz por que em vez de deixar o 400 do ser
 await testeAsync('com ano válido, a consulta segue mesmo sem opções', async () => {
     const { app, fetch } = appDeTeste({
         '/api/opcoes': { json: { anos: [], ufs: [] } },
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     }, { ano: '2024' });
     await app.filtrar();
     assert.equal(app.estado().consultado, true, 'o ano digitado basta');
@@ -849,7 +850,7 @@ await testeAsync('/api/opcoes falhando não cancela a consulta', async () => {
      * Uma não pode derrubar a outra. */
     const { app, fetch } = appDeTeste({
         '/api/opcoes': new Error('opcoes fora'),
-        '/api/consulta': { json: { total: 1, dados: [] } },
+        '/api/consulta': { json: { total: 1, registros: [] } },
     }, { ano: '2024' });
     await app.filtrar();
     assert.equal(app.estado().consultado, true, 'a consulta tinha que acontecer');
@@ -859,7 +860,7 @@ await testeAsync('/api/opcoes falhando não cancela a consulta', async () => {
 await testeAsync('a consulta usa o ano que o usuário escolheu, não o primeiro da lista', async () => {
     const { app, doc, fetch } = appDeTeste({
         '/api/opcoes': { json: { anos: [2024, 2021], ufs: [] } },
-        '/api/consulta': { json: { total: 0, dados: [] } },
+        '/api/consulta': { json: { total: 0, registros: [] } },
     }, { ano: '2021' });
     await app.filtrar();
     assert.equal(doc.porId.ano.value, '2021', 'seleção do usuário é preservada');
@@ -879,12 +880,27 @@ teste('rotaConsulta monta o caminho de api/consulta', () => {
 
 await testeAsync('consultar devolve o envelope com dados', async () => {
     const fetch = criaFetch({
-        '/api/consulta': { json: { total: 2, min: 1, max: 9, media: 5, soma: 10, dados: [] } },
+        '/api/consulta': {
+            json: {
+                consulta: { fonte: 'ibge', indicador: 'populacao', nivel: 'municipio', ano: 2024 },
+                total: 2,
+                kpis: { min: 1, max: 9, media: 5, soma: 10, com_dado: 2 },
+                registros: [],
+                serie: [1, null, 2],
+                serie_anos: [2022, 2024, 2026],
+            },
+        },
     });
     const r = await consultar({ ano: 2024 }, { fetch });
+    /* O envelope volta como veio — o front consome a spec §8, e `max` mora
+     * dentro de `kpis`, não no topo. */
     assert.equal(r.total, 2);
-    assert.equal(r.max, 9);
-    assert.ok(Array.isArray(r.dados), 'dados é lista');
+    assert.equal(r.kpis.max, 9);
+    assert.equal(r.consulta.ano, 2024, 'o eco da consulta volta');
+    assert.equal(r.consulta.indicador, 'populacao');
+    assert.ok(Array.isArray(r.registros), 'registros é lista');
+    assert.deepEqual(r.serie, [1, null, 2], 'a série vem com null na lacuna');
+    assert.deepEqual(r.serie_anos, [2022, 2024, 2026]);
 });
 
 await testeAsync('consultar transforma envelope de erro em exceção com a mensagem', async () => {

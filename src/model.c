@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -203,6 +204,34 @@ static int w_txt(FILE *f, const char *s, size_t campo)
     return w_bytes(f, buf, campo);
 }
 
+/* mkdir -p do diretório que vai receber `caminho`.
+ *
+ * `data/processed/` tem dois níveis e a árvore limpa não tem nenhum dos dois.
+ * Um `mkdir(dir, 0777)` de um nível só, ignorando o retorno, dava a impressão
+ * de que o caminho estava tratado e falhava três linhas adiante, em `fopen`,
+ * com a mensagem "não consegui gravar o índice" — que não dizia nada sobre o
+ * diretório faltando. */
+static int cria_dir_do_caminho(const char *caminho)
+{
+    char buf[512];
+    char *p;
+
+    if ((size_t)snprintf(buf, sizeof buf, "%s", caminho) >= sizeof buf) return -1;
+    p = strrchr(buf, '/');
+    if (!p) return 0;                 /* sem diretório: o cwd serve */
+    *p = '\0';
+    if (!buf[0]) return 0;            /* "/arquivo" */
+
+    for (p = buf + 1; *p; p++) {
+        if (*p != '/') continue;
+        *p = '\0';
+        if (mkdir(buf, 0777) != 0 && errno != EEXIST) return -1;
+        *p = '/';
+    }
+    if (mkdir(buf, 0777) != 0 && errno != EEXIST) return -1;
+    return 0;
+}
+
 int model_grava(const model *m, const char *caminho)
 {
     char tmp[512];
@@ -217,17 +246,10 @@ int model_grava(const model *m, const char *caminho)
         return -1;
 
     /* data/processed/ pode não existir ainda: é a primeira escrita da árvore
-     * limpa. Um nível só, que é o que o caminho tem. */
-    {
-        char dir[512];
-        char *slash;
-        if ((size_t)snprintf(dir, sizeof dir, "%s", caminho) >= sizeof dir) return -1;
-        slash = strrchr(dir, '/');
-        if (slash) {
-            *slash = '\0';
-            if (dir[0]) mkdir(dir, 0777);
-        }
-    }
+     * limpa. São DOIS níveis, e `mkdir` de um nível só resolve o problema
+     * quando `data/` já existe — o que é justamente o caso que não existe
+     * quando o índice ainda não foi gravado. */
+    if (cria_dir_do_caminho(caminho) != 0) return -1;
 
     f = fopen(tmp, "wb");
     if (!f) return -1;

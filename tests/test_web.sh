@@ -4,19 +4,28 @@
 #
 # Motivo: existe uma classe de bug que nenhum teste de unitário pega — o
 # servidor responder 404 para app.js, ou servir .js com o MIME errado, e a
-# página abrir em branco sem nenhuma pista. Estes testes conversam com o
-# HTTP.
+# página abrir em branco sem nenhuma pista. Estes testes conversam com o HTTP.
 #
-# O script sobe o próprio servidor numa porta livre, espera ficar pronto,
-# consulta e derruba. Se já houver um servidor na porta, ele o reaproveita.
+# O teste é hermético, e isso mudou por causa de dois achados:
+#
+#   I14  A porta era fixa (8099) e o script *reaproveitava* um servidor que
+#        estivesse lá. Quem deixasse um servidor no ar rodando com o código de
+#        ontem fazia este teste passar contra o servidor errado — e, pior,
+#        derrubava o servidor de outra pessoa no `trap`. Agora a porta é
+#        escolhida livre e o servidor é sempre um filho deste script.
+#
+#   C2   O servidor passou a recusar subir sem dado processado (§10). Com a
+#        árvore limpa o teste passava a falhar por falta de índice, e com um
+#        índice de 3 bytes escrito à mão passava por acidente. Agora o teste
+#        roda num diretório temporário, semeia `./dashboard --amostra` (que não
+#        baixa nada) e sobe o servidor dali. Nada do diretório de trabalho é
+#        lido, nada é escrito e nenhuma rede é usada.
 #
 # Uso: tests/test_web.sh [porta]
 set -eu
 
 RAIZ=$(cd "$(dirname "$0")/.." && pwd)
-PORTA=${1:-8099}
 BIN="$RAIZ/dashboard"
-BASE="http://127.0.0.1:$PORTA"
 
 falhas=0
 testes=0
@@ -24,16 +33,14 @@ testes=0
 # `falha` imprime o detalhe e conta a verificação; `confere` conta e imprime
 # só o rótulo. As duas contam exatamente uma vez — antes elas somavam duas,
 # e o relatório dizia "1 de 15" num total que era 16, o que sugeria que
-# hadn't sido verificado.
+# não tinha sido verificado.
 falha() {
-    # $1 = o que era esperado, $2 = o que aconteceu, $3 = o que foi testado
     testes=$((testes + 1))
     falhas=$((falhas + 1))
     printf 'FALHOU: %s\n  esperado: %s\n  obtido:   %s\n' "$3" "$1" "$2"
 }
 
 confere() {
-    # $1 = rótulo, $2 = condição (0 = passou)
     testes=$((testes + 1))
     if [ "$2" -ne 0 ]; then
         falhas=$((falhas + 1))
@@ -41,7 +48,6 @@ confere() {
     fi
 }
 
-# Só considera falha se o servidor respondeu; "não respondeu" é outro teste.
 status() {
     curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null || printf '000'
 }
@@ -55,52 +61,79 @@ if [ ! -x "$BIN" ]; then
     exit 1
 fi
 
-# --- sobe o servidor ---------------------------------------------------
-SUBIU=0
-PID_SRV=""
-LOG_SRV="${TMPDIR:-/tmp}/test_web_servidor.$$.log"
-if [ "$(status "$BASE/index.html")" = "200" ]; then
-    printf -- '--- web: reaproveitando o servidor em %s\n' "$BASE"
-else
-    printf -- '--- web: subindo o servidor em %s\n' "$BASE"
-    ( cd "$RAIZ" && exec "$BIN" --porta "$PORTA" ) >"$LOG_SRV" 2>&1 &
-    PID_SRV=$!
-    # espera o servidor responder
-    i=0
-    while [ "$i" -lt 50 ]; do
-        if [ "$(status "$BASE/index.html")" != "000" ]; then
-            SUBIU=1
-            break
-        fi
-        i=$((i + 1))
-        sleep 0.1
-    done
-    if [ "$SUBIU" -eq 0 ]; then
-        printf 'FALHOU: servidor não respondeu na porta %s\n' "$PORTA"
-        printf -- '--- log do servidor ---\n'
-        cat "$LOG_SRV" 2>/dev/null || true
-        kill "$PID_SRV" 2>/dev/null || true
-        rm -f "$LOG_SRV"
-        exit 1
-    fi
-fi
+# --- diretório de trabalho isolado -----------------------------------
+# `web` é um link para a árvore real: o que se testa é o arquivo que será
+# servido, não uma cópia que pode divergir do original.
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/test_web.XXXXXX")
+ln -s "$RAIZ/web" "$TMP/web"
 
-# Derruba o servidor no fim, por qualquer caminho de saída. Guarda o PID
-# explicitamente em vez de usar %1: em shell não interativo o "%1" não é
-# fiável, e o `kill` errado mata o próprio script (o que aconteceu).
+PID_SRV=""
+LOG_SRV="$TMP/servidor.log"
+
 para_servidor() {
-    if [ "$SUBIU" -eq 1 ] && [ -n "$PID_SRV" ]; then
+    if [ -n "$PID_SRV" ]; then
         kill "$PID_SRV" 2>/dev/null || true
         wait "$PID_SRV" 2>/dev/null || true
+        PID_SRV=""
     fi
-    [ -n "$LOG_SRV" ] && rm -f "$LOG_SRV"
     return 0
 }
-trap para_servidor EXIT INT TERM
+trap 'para_servidor; rm -rf "$TMP"' EXIT INT TERM
+
+# O índice que o portão de primeira execução exige. `--amostra` grava três
+# municípios e três anos, determinísticos e sem rede — é o suficiente para
+# /api/opcoes e /api/consulta responderem 200 com conteúdo de verdade.
+if ! ( cd "$TMP" && "$BIN" --amostra ) >"$TMP/amostra.log" 2>&1; then
+    printf 'FALHOU: --amostra não gravou o índice\n'
+    cat "$TMP/amostra.log" 2>/dev/null || true
+    exit 1
+fi
+[ -s "$TMP/data/processed/modelo.idx" ] || {
+    printf 'FALHOU: --amostra não deixou data/processed/modelo.idx\n'
+    exit 1
+}
+confere "a amostra deixa um índice que o portão aceita" 0
+
+# --- porta livre ------------------------------------------------------
+# Sonda a partir da porta pedida (ou de uma alta e improvável) até achar uma
+# que não responda. Reaproveitar um servidor alheio é justamente o defeito
+# I14, então aqui a única porta aceitável é a que ninguém está usando.
+PORTA=${1:-0}
+if [ "$PORTA" -eq 0 ]; then
+    PORTA=$(( 18000 + ($$ % 2000) ))
+fi
+i=0
+while [ "$i" -lt 20 ]; do
+    if [ "$(status "http://127.0.0.1:$PORTA/index.html")" = "000" ]; then
+        break
+    fi
+    PORTA=$((PORTA + 1))
+    i=$((i + 1))
+done
+BASE="http://127.0.0.1:$PORTA"
+
+printf -- '--- web: subindo o servidor em %s (cwd temporário)\n' "$BASE"
+( cd "$TMP" && exec "$BIN" --porta "$PORTA" --web web ) >"$LOG_SRV" 2>&1 &
+PID_SRV=$!
+
+SUBIU=0
+i=0
+while [ "$i" -lt 100 ]; do
+    if [ "$(status "$BASE/index.html")" != "000" ]; then
+        SUBIU=1
+        break
+    fi
+    i=$((i + 1))
+    sleep 0.1
+done
+if [ "$SUBIU" -eq 0 ]; then
+    printf 'FALHOU: servidor não respondeu na porta %s\n' "$PORTA"
+    printf -- '--- log do servidor ---\n'
+    cat "$LOG_SRV" 2>/dev/null || true
+    exit 1
+fi
 
 # --- o servidor entrega cada arquivo que o front precisa --------------
-# Um 200 e um corpo com o que se espera são a mesma verificação; quem imprime
-# o detalhe é `falha`, que já conta. Por isso não há `confere` em paralelo.
 S_IDX=$(status "$BASE/index.html")
 [ "$S_IDX" = 200 ] || falha 'HTTP 200' "$S_IDX" "index.html responde 200"
 
@@ -110,15 +143,14 @@ for arq in app.js api.js filters.js charts.js styles.css; do
 done
 
 # --- o brief pede exatamente estes dois -------------------------------
-# Passo 6 do brief:
 if corpo "$BASE/index.html" | grep -q 'id="filtrar"'; then
-    confere "index.html contém id=\"filtrar\"" 0
+    confere 'index.html contém id="filtrar"' 0
 else
     falha 'id="filtrar"' 'ausente' "index.html"
 fi
 
 if corpo "$BASE/app.js" | grep -q 'consultado'; then
-    confere "app.js menciona consultado" 0
+    confere 'app.js menciona consultado' 0
 else
     falha 'a palavra consultado' 'ausente' "app.js"
 fi
@@ -141,8 +173,8 @@ for texto in 'Ajuste os filtros e clique em Filtrar' 'Sem dados — clique em Fi
 done
 
 # Os KPIs têm que começar em "--", não em 0 nem vazio.
-if printf '%s' "$IDX" | grep -qE '\-\-'; then
-    confere "estado vazio: KPIs com --" 0
+if printf '%s' "$IDX" | grep -qF -- '--'; then
+    confere 'estado vazio: KPIs com --' 0
 else
     falha 'placeholder --' 'ausente' "KPIs em index.html"
 fi
@@ -152,36 +184,115 @@ fi
 if corpo "$BASE/app.js" | grep -nE '^\s*(await\s+)?(consultar|opcoes)\(' ; then
     falha 'nenhuma consulta no topo do módulo' 'chamada no escopo de módulo' "app.js"
 else
-    confere "app.js não chama consultar()/opcoes() no escopo de módulo" 0
+    confere 'app.js não chama consultar()/opcoes() no escopo de módulo' 0
 fi
 
-# --- os textos do front têm acento ----------------------------------
-# Um " proximas" ou "publico" denuncia fonte escrita sem acento, que foi o
-# defeito I4 na Tarefa 1.
-if corpo "$BASE/index.html" | grep -qE '>[^<]*(proximas|publicos|ano invalido|municipio)[^<]*<' \
-   && ! corpo "$BASE/index.html" | grep -q 'Próximas\|próximas\|públicos\|Município'; then
-    falha 'texto sem acento' 'encontrado' "index.html"
-else
-    confere "textos do front com acento" 0
-fi
+# --- os textos do front têm acento -----------------------------------
+# I15: a guarda anterior era `grep sem acento && ! grep com acento`, e ela não
+# podia falhar — bastava o index.html conter "Município" em qualquer canto para
+# a segunda metade do `&&` desligar o teste inteiro, mesmo com texto sem
+# acento ao lado. Aqui cada palavra é verificada sozinha e a verificação não
+# tem escape: ou não há palavra sem acento em nenhum arquivo, ou o teste falha
+# dizendo quais.
+#
+# A lista NÃO pode conter palavra que seja valor de protocolo. `municipio`,
+# `serie`, `media`, `codigo` e `opcoes` aparecem sem acento porque são o
+# token que vai na query string e a chave que vem no JSON — acentuá-los
+# quebraria a chamada. O que está aqui é palavra que, escrita sem acento em
+# texto, é erro de português.
+PALAVRAS='proximas proximo publicos publico invalido invalida ultimo ultima
+informacao numero possiveis possivel analise tambem configuracao descricao
+selecao situacao estatistica historico relatorio atualizacao conexao
+requisicao criterio periodo mediana referencia parametro parametros
+padrao padroes versao opcoes-completo'
+for arq in index.html app.js api.js filters.js charts.js; do
+    ACHADO=''
+    for p in $PALAVRAS; do
+        case "$p" in *-*) continue ;; esac
+        if corpo "$BASE/$arq" | grep -q "$p"; then
+            ACHADO="$ACHADO $p"
+        fi
+    done
+    if [ -n "$ACHADO" ]; then
+        falha 'nenhuma palavra sem acento' "encontrada(s):$ACHADO" "texto de $arq"
+    else
+        confere "textos de $arq com acento" 0
+    fi
+done
 
-# --- a API responde ----------------------------------------------
+# E o contrário, que é o que impede o teste de passar por lista vazia: o
+# acento tem que estar lá. Um guarda que só sabe dizer "não achei o erro" é
+# um guarda que passa em arquivo vazio.
+for arq in index.html app.js; do
+    ACHADO=''
+    for p in 'município' 'Município' 'série' 'Média' 'públicos'; do
+        if corpo "$BASE/$arq" | grep -qF "$p"; then
+            ACHADO=1
+        fi
+    done
+    if [ -z "$ACHADO" ]; then
+        falha 'palavra acentuada' 'nenhuma encontrada' "acento presente em $arq"
+    else
+        confere "$arq traz texto acentuado" 0
+    fi
+done
+
+# --- a API responde com o formato da spec §8 ------------------------
 S_OPC=$(status "$BASE/api/opcoes?fonte=ibge&indicador=populacao")
 confere "api/opcoes responde 200 (obtido $S_OPC)" \
     "$([ "$S_OPC" = 200 ] && echo 0 || echo 1)"
 
-# 2022 é a lacuna conhecida da série; não pode ser oferecido.
-if corpo "$BASE/api/opcoes?fonte=ibge&indicador=populacao" | grep -q '2022'; then
-    falha 'api/opcoes sem 2022' '2022 presente' "api/opcoes"
+# As opções precisam trazer UFs de verdade — era o literal `"ufs": []` que
+# deixava o filtro de UF do front sem nenhuma opção (achado C6). E o corpo
+# tem que existir: uma verificação com `body == NULL` passa com corpo vazio.
+OPC=$(corpo "$BASE/api/opcoes?fonte=ibge&indicador=populacao")
+if [ -n "$OPC" ] && printf '%s' "$OPC" | grep -q '"ufs":\[' ; then
+    confere 'api/opcoes traz a chave ufs' 0
 else
-    confere "api/opcoes não oferece 2022" 0
+    falha 'a chave ufs' "${OPC:-<corpo vazio>}" "api/opcoes"
+fi
+if printf '%s' "$OPC" | grep -q '"ufs":\[\]' ; then
+    falha 'ufs com pelo menos uma UF' 'lista vazia' "api/opcoes"
+else
+    confere 'api/opcoes lista UFs do modelo' 0
+fi
+if printf '%s' "$OPC" | grep -q '"anos":\[' ; then
+    confere 'api/opcoes traz a chave anos' 0
+else
+    falha 'a chave anos' 'ausente' "api/opcoes"
 fi
 
-# --- cleanup ------------------------------------------------------
-# O trap EXIT já derruba o servidor; aqui é só o relatório.
+# --- a consulta é real ------------------------------------------------
+S_CON=$(status "$BASE/api/consulta?fonte=ibge&indicador=populacao&ano=2024")
+confere "api/consulta responde 200 (obtido $S_CON)" \
+    "$([ "$S_CON" = 200 ] && echo 0 || echo 1)"
 
-# `printf '---…'` quebra em dash, que lê o texto inicial como opção; o
-# formato vai como primeiro argumento.
+CON=$(corpo "$BASE/api/consulta?fonte=ibge&indicador=populacao&ano=2024")
+for chave in '"consulta":' '"total":' '"kpis":' '"registros":'; do
+    if printf '%s' "$CON" | grep -qF "$chave"; then
+        confere "api/consulta traz $chave" 0
+    else
+        falha "$chave" 'ausente' "api/consulta"
+    fi
+done
+if printf '%s' "$CON" | grep -qF '"registros":[]' ; then
+    falha 'registros com pelo menos uma linha' 'lista vazia' "api/consulta"
+else
+    confere 'api/consulta devolve registros' 0
+fi
+if printf '%s' "$CON" | grep -qF '"dados"' ; then
+    falha 'sem a chave dados do formato antigo' '"dados" presente' "api/consulta"
+else
+    confere 'api/consulta usa o formato da spec, sem "dados"' 0
+fi
+
+# Ano que não existe é 400 com mensagem em português — não 200 com lista
+# vazia, que é o que faria a tela mentir.
+S_BAD=$(status "$BASE/api/consulta?fonte=ibge&indicador=populacao&ano=1899")
+confere "ano inválido responde 400 (obtido $S_BAD)" \
+    "$([ "$S_BAD" = 400 ] && echo 0 || echo 1)"
+
+# --- relatório -------------------------------------------------------
 printf '%s\n' "--- web: $([ "$falhas" -eq 0 ] && echo OK || echo FALHOU)"
 if [ "$falhas" -gt 0 ]; then
     printf '%s de %s verificações do web falharam\n' "$falhas" "$testes"
