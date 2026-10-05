@@ -190,6 +190,41 @@ static void teste_serie(void)
     libera_body(&res);
 }
 
+/* A consulta mais simples que existe não traz indicador nem fonte, e é a
+ * primeira coisa que alguém digita numa barra de endereço. Ela tem que
+ * responder 200 com dado de verdade. Antes devolvia 400 "indicador inválido"
+ * por não ter dito qual indicador queria — e essa resposta chegou depois de
+ * toda a ingestão funcionar, o que é a pior hora para ela aparecer. */
+static void teste_minima(void)
+{
+    http_response res = chama("api/consulta", "fonte=ibge&ano=2024");
+
+    T_ASSERT(res.status == 200, "consulta sem indicador responde 200");
+    T_ASSERT(res.body != NULL, "consulta mínima tem corpo");
+    /* O eco da consulta mostra o que valeu: sem indicador na query, o eco
+     * diz `populacao` — e não "", que descreveria uma consulta que ninguém
+     * fez. */
+    T_ASSERT(strstr(res.body, "\"indicador\":\"populacao\"") != NULL,
+             "o eco nomeia o indicador que valeu");
+    T_ASSERT(strstr(res.body, "\"fonte\":\"ibge\"") != NULL,
+             "o eco nomeia a fonte que valeu");
+    T_ASSERT(strstr(res.body, "\"registros\":[]") == NULL,
+             "a consulta mínima devolve linhas, não lista vazia");
+    libera_body(&res);
+
+    /* Sem indicador E sem fonte: o mesmo default. `?ano=2024` tem que
+     * funcionar tanto quanto `?fonte=ibge&ano=2024`. */
+    res = chama("api/consulta", "ano=2024");
+    T_ASSERT(res.status == 200, "consulta de um parâmetro só responde 200");
+    libera_body(&res);
+
+    /* Indicador AUSENTE tem default; indicador ERRADO continua sendo erro.
+     * Sem esta metade, "default" seria "aceitar qualquer coisa". */
+    res = chama("api/consulta", "indicador=naoexiste&ano=2024");
+    T_ASSERT(res.status == 400, "indicador desconhecido continua 400");
+    libera_body(&res);
+}
+
 static void teste_erros(void)
 {
     http_response res;
@@ -337,6 +372,7 @@ void test_api(void)
      * modelo apontado, elas respondem. */
     api_set_model(&m);
     teste_consulta_valida();
+    teste_minima();
     teste_limite_nao_mexe_no_kpi();
     teste_ordenar();
     teste_ausente_vira_null();

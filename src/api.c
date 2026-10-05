@@ -196,7 +196,17 @@ static const char *indicador_nome(indicador ind)
 
 static indicador indicador_de(const char *s)
 {
-    if (!s) return IND_TOTAL;
+    /* Indicador ausente é população, que é o único que existe hoje e o único
+     * que a spec §8 mostra como exemplo. Sem este default, a consulta mais
+     * simples que existe — `?fonte=ibge&ano=2024` — devolvia 400 "indicador
+     * inválido" por não ter dito qual indicador queria, e a pessoa que está
+     * experimentando pela primeira vez via um 400 sem parâmetro como
+     * primeira resposta.
+     *
+     * O que NÃO é default é fonte ou ano: sem ano não há dado, e dizer
+     * "população" não pode virar "200 com lista vazia" para uma consulta que
+     * esqueceu o filtro. */
+    if (!s || !*s) return IND_POPULACAO;
     if (strcasecmp_safe(s, "populacao") == 0 ||
         strcasecmp_safe(s, "população") == 0) return IND_POPULACAO;
     if (strcasecmp_safe(s, "estabelecimentos") == 0) return IND_ESTABELECIMENTOS;
@@ -288,8 +298,11 @@ static char *monta_consulta(const model *m, indicador ind, int nivel_uf,
         char *esc_ordem = text_json_escape(ordenar ? ordenar : "");
         char *esc_cod = text_json_escape(cod ? cod : "");
 
+        /* A fonte ausente vira "ibge" no eco também: o eco da consulta é o
+         * que o front mostra como "o que foi pedido", e mostrar "" ao lado
+         * de `indicador: populacao` descreve uma consulta que ninguém fez. */
         acc_printf(&a, "\"fonte\":\"%s\",\"indicador\":\"%s\",\"nivel\":\"%s\",",
-                   esc_fonte ? esc_fonte : "",
+                   (esc_fonte && *esc_fonte) ? esc_fonte : "ibge",
                    indicador_nome(ind),
                    nivel_uf ? "uf" : "municipio");
         acc_printf(&a, "\"uf\":\"%s\",\"ano\":%d", esc_uf ? esc_uf : "", ano);
