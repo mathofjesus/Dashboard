@@ -21,12 +21,21 @@ dashboard: $(OBJ)
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-test: $(TEST_BIN)
+test: $(TEST_BIN) dashboard web/test-web
 	./$(TEST_BIN)
+	node tests/test_web.mjs
+	sh tests/test_web.sh
 
 # A suíte de rede fica no mesmo binário, mas só roda com --rede: assim `make test` não depende de internet e `make test-rede` baixa a API do IBGE.
 test-rede: $(TEST_BIN)
 	./$(TEST_BIN) --rede
+
+# O front não tem build step (é ES modules servido como estático), então só há o
+# que verificar: sintaxe de cada módulo e o porte de node antes do teste.
+NODE ?= node
+web/test-web:
+	@for m in web/*.js; do $(NODE) --check "$$m" || exit 1; done
+	@echo "sintaxe ok: $$(ls web/*.js | tr '\n' ' ')"
 
 $(TEST_BIN): $(TEST_SRC) $(TEST_HDR)
 	$(CC) $(CFLAGS) -o $@ $(TEST_SRC) $(LDLIBS)

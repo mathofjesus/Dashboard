@@ -2,11 +2,117 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard de dados públicos</title>
+  <!-- Favicon embutido: sem este link o navegador pede /favicon.ico e leva
+       um 404 no console, que é ruído puro num painel de dados. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232fbf71'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>Dashboard</h1>
-  <p>Servidor HTTP no ar. Os dados publicos entram nas proximas tarefas.</p>
+  <!--
+    Estado vazio por construção: os três textos abaixo estão escritos no HTML,
+    não gerados por JS. A página abre assim e fica assim até o clique em
+    "Filtrar" — nenhum módulo do front busca nada no carregamento.
+  -->
+  <header class="cabecalho">
+    <div>
+      <h1>Dashboard de dados públicos</h1>
+      <p class="subtitulo">IBGE e Saúde. Nada é carregado até você pedir.</p>
+    </div>
+    <div class="cabecalho-fonte">
+      <label for="fonte">Fonte</label>
+      <select id="fonte" name="fonte"></select>
+    </div>
+  </header>
+
+  <main class="painel">
+    <!-- Painel de filtros. Os catálogos (indicador, nível, ordenação, limite)
+         são da interface e são preenchidos no load; UF e ano dependem de
+         /api/opcoes e só existem depois do primeiro "Filtrar". -->
+    <section class="filtros" aria-label="Filtros">
+      <h2 class="filtros-titulo">Filtros</h2>
+
+      <div class="campo">
+        <label for="uf">UF</label>
+        <select id="uf" name="uf"></select>
+      </div>
+
+      <div class="campo">
+        <label for="ano">Ano</label>
+        <select id="ano" name="ano"></select>
+      </div>
+
+      <div class="campo">
+        <label for="indicador">Indicador</label>
+        <select id="indicador" name="indicador"></select>
+      </div>
+
+      <div class="campo">
+        <label for="nivel">Nível</label>
+        <select id="nivel" name="nivel"></select>
+      </div>
+
+      <div class="campo">
+        <label for="busca">Busca</label>
+        <input type="search" id="busca" name="busca"
+               placeholder="Nome ou código do município"
+               autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="campo">
+        <label for="ordenar">Ordenar por</label>
+        <select id="ordenar" name="ordenar"></select>
+      </div>
+
+      <div class="campo">
+        <label for="limite">Limite</label>
+        <select id="limite" name="limite"></select>
+      </div>
+
+      <button id="filtrar" type="button">
+        <span class="rotulo">Filtrar</span>
+      </button>
+
+      <p class="nota">
+        Nenhum dado é buscado ao abrir a página. Clique em <strong>Filtrar</strong>
+        para consultar.
+      </p>
+    </section>
+
+    <div class="resultado">
+      <!-- KPIs: quatro cartões, todos em "--" até haver consulta. -->
+      <section id="kpis" class="estado-vazio" aria-label="Indicadores">
+        <div class="kpi">
+          <span class="kpi-rotulo">Total de municípios</span>
+          <span class="kpi-valor">--</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-rotulo">Mínimo</span>
+          <span class="kpi-valor">--</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-rotulo">Máximo</span>
+          <span class="kpi-valor">--</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-rotulo">Média</span>
+          <span class="kpi-valor">--</span>
+        </div>
+      </section>
+
+      <section id="graficos" class="estado-vazio" aria-label="Gráficos">
+        <p>Ajuste os filtros e clique em Filtrar</p>
+      </section>
+
+      <section id="mapa" class="estado-vazio" aria-label="Mapa">
+        <p>Sem dados — clique em Filtrar</p>
+      </section>
+
+      <section id="tabela" aria-label="Tabela de municípios"></section>
+    </div>
+  </main>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>

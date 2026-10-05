@@ -1,1 +1,355 @@
-/* Vazio de proposito: o estilo entra quando os dados publicos chegarem. */
+/* web/styles.css — sistema visual do dashboard.
+ *
+ * Os tokens de cor, espaço, raio e tipografia vivem no :root como variáveis
+ * CSS. A Tarefa 10 mexe na paleta e na densidade trocando valores aqui, sem
+ * tocar em nenhuma regra de layout.
+ *
+ * A paleta é escura por escolha de densidade de dado: um painel com quatro
+ * KPIs, um mapa e uma tabela de 5570 linhas é leitura longa, e o fundo claro
+ * cansa mais rápido. O acento verde é o mesmo dos painéis públicos de
+ * saúde, o que evita a sensação de "toy".
+ */
+
+:root {
+  /* Superfícies, do fundo ao mais elevado */
+  --fundo: #0e1116;
+  --superficie: #161b22;
+  --superficie-alta: #1d242e;
+  --borda: #2a323d;
+  --borda-forte: #3d4855;
+
+  /* Texto */
+  --texto: #e6edf3;
+  --texto-suave: #9aa7b4;
+  --texto-tenue: #6b7785;
+
+  /* Acento e estados */
+  --acento: #2fbf71;
+  --acento-suave: rgba(47, 191, 113, 0.14);
+  --aviso: #e3a008;
+  --erro: #f4564a;
+  --erro-fundo: rgba(244, 86, 74, 0.12);
+
+  /* Espaço — escala de 4px, para o grid casar */
+  --e1: 0.25rem;
+  --e2: 0.5rem;
+  --e3: 0.75rem;
+  --e4: 1rem;
+  --e5: 1.5rem;
+  --e6: 2rem;
+
+  /* Forma */
+  --raio: 6px;
+  --raio-g: 10px;
+  --sombra: 0 1px 2px rgba(0, 0, 0, 0.4);
+
+  /* Tipografia */
+  --fonte-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --fonte-num: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --grade-filtros: 15rem;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --fundo: #f6f8fa;
+    --superficie: #ffffff;
+    --superficie-alta: #eef1f4;
+    --borda: #d8dee4;
+    --borda-forte: #b8c0c9;
+    --texto: #1f2730;
+    --texto-suave: #5a6572;
+    --texto-tenue: #8b95a1;
+    --sombra: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html {
+  /* A fonte pequena e maiúscula devolve o lugar de ocorrência sem mover o
+     layout, que é o que acontece com zoom em fonte de sistema. */
+  font-size: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: var(--fonte-ui);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- */
+/* Cabeçalho                                                          */
+/* ---------------------------------------------------------------- */
+
+.cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--e4);
+  padding: var(--e5) var(--e6) var(--e4);
+  border-bottom: 1px solid var(--borda);
+  background: var(--superficie);
+}
+
+.cabecalho h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+
+.subtitulo {
+  margin: var(--e1) 0 0;
+  color: var(--texto-suave);
+  font-size: 0.8125rem;
+}
+
+.cabecalho-fonte {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.cabecalho-fonte label {
+  color: var(--texto-suave);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ---------------------------------------------------------------- */
+/* Layout principal                                                   */
+/* ---------------------------------------------------------------- */
+
+.painel {
+  display: grid;
+  grid-template-columns: var(--grade-filtros) minmax(0, 1fr);
+  gap: var(--e5);
+  align-items: start;
+  padding: var(--e5) var(--e6);
+}
+
+@media (max-width: 60rem) {
+  .painel { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------------------------------------------------------------- */
+/* Filtros                                                            */
+/* ---------------------------------------------------------------- */
+
+.filtros {
+  position: sticky;
+  top: var(--e5);
+  display: grid;
+  gap: var(--e3);
+  padding: var(--e4);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  box-shadow: var(--sombra);
+}
+
+@media (max-width: 60rem) {
+  .filtros { position: static; }
+}
+
+.filtros-titulo {
+  margin: 0 0 var(--e1);
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--texto-tenue);
+}
+
+.campo {
+  display: grid;
+  gap: var(--e1);
+}
+
+.campo label {
+  color: var(--texto-suave);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+select,
+input[type="search"] {
+  width: 100%;
+  padding: var(--e2) var(--e3);
+  background: var(--superficie-alta);
+  color: var(--texto);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+select:focus-visible,
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+#filtrar {
+  margin-top: var(--e2);
+  padding: var(--e3) var(--e4);
+  background: var(--acento);
+  color: #06210f;
+  border: 1px solid transparent;
+  border-radius: var(--raio);
+  font: inherit;
+  font-weight: 640;
+  cursor: pointer;
+  transition: filter 120ms ease, opacity 120ms ease;
+}
+
+#filtrar:hover:not(:disabled) { filter: brightness(1.08); }
+
+#filtrar:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.nota {
+  margin: var(--e2) 0 0;
+  padding-top: var(--e3);
+  border-top: 1px solid var(--borda);
+  color: var(--texto-tenue);
+  font-size: 0.75rem;
+}
+
+.nota strong { color: var(--texto-suave); }
+
+/* ---------------------------------------------------------------- */
+/* Resultado                                                          */
+/* ---------------------------------------------------------------- */
+
+.resultado {
+  display: grid;
+  gap: var(--e5);
+  min-width: 0;
+}
+
+/* Os KPIs são uma grade de cartões. `place-items: center` vem de
+   `.estado-vazio` e destrói o `auto-fit` daqui: com `justify-items: center` o
+   auto-fit calcula uma coluna a mais de largura zero, e o cartão fica
+   estreito dentro dela. Por isso o alinhamento é explícito neste bloco. */
+#kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  justify-items: stretch;
+  gap: var(--e3);
+}
+
+.kpi {
+  display: grid;
+  gap: var(--e1);
+  padding: var(--e3) var(--e4);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  box-shadow: var(--sombra);
+}
+
+.kpi-rotulo {
+  color: var(--texto-tenue);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* Números em fonte monoespaçada: alinham na comparação vertical, que é como
+   se lê um painel de KPIs. */
+.kpi-valor {
+  font-family: var(--fonte-num);
+  font-size: 1.375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Estado vazio: o conteúdo é o aviso, não um esqueleto. */
+.estado-vazio {
+  display: grid;
+  place-items: center;
+  min-height: 7rem;
+  padding: var(--e5);
+  background: var(--superficie);
+  border: 1px dashed var(--borda-forte);
+  border-radius: var(--raio-g);
+  color: var(--texto-tenue);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+#kpis.estado-vazio { min-height: 0; }
+
+#kpis.erro {
+  display: block;
+  padding: var(--e4);
+  background: var(--erro-fundo);
+  border: 1px solid var(--erro);
+  border-radius: var(--raio-g);
+  color: var(--erro);
+}
+
+#graficos,
+#mapa { min-height: 14rem; }
+
+#tabela {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  overflow: auto;
+  max-height: 32rem;
+}
+
+#tabela table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+#tabela th,
+#tabela td {
+  padding: var(--e2) var(--e4);
+  text-align: left;
+  border-bottom: 1px solid var(--borda);
+}
+
+#tabela th {
+  position: sticky;
+  top: 0;
+  background: var(--superficie-alta);
+  color: var(--texto-suave);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#tabela td:nth-child(2),
+#tabela td:nth-child(3) {
+  font-family: var(--fonte-num);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+#tabela tbody tr:hover { background: var(--acento-suave); }
+
+#tabela p {
+  margin: 0;
+  padding: var(--e4);
+  color: var(--texto-tenue);
+  font-size: 0.875rem;
+}
