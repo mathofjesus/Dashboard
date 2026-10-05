@@ -23,7 +23,7 @@ dashboard: $(OBJ)
 
 test: $(TEST_BIN) dashboard web/test-web
 	./$(TEST_BIN)
-	node tests/test_web.mjs
+	$(NODE) tests/test_web.mjs
 	sh tests/test_web.sh
 
 # A suíte de rede fica no mesmo binário, mas só roda com --rede: assim `make test` não depende de internet e `make test-rede` baixa a API do IBGE.
@@ -32,8 +32,20 @@ test-rede: $(TEST_BIN)
 
 # O front não tem build step (é ES modules servido como estático), então só há o
 # que verificar: sintaxe de cada módulo e o porte de node antes do teste.
-NODE ?= node
+#
+# `node` nem sempre está no PATH — no Debian ele costuma vir só de um gerenciador
+# de versões instalado pelo usuário. Sem isto, `make test` morria em
+# "node: not found" depois de a suíte C já ter passado, o que é o pior lugar
+# para descobrir que falta um interpretador. A ordem de busca é: o NODE do
+# ambiente, o PATH, e então o node do próprio Hermes. `command -v` em vez de
+# `which` porque `which` não é padrão em POSIX e aqui é o /bin/sh do dash.
+NODE ?= $(shell command -v node 2>/dev/null || \
+                 ls -d $${HOME}/.hermes/tools/node-*/bin/node 2>/dev/null | sort -V | tail -1)
 web/test-web:
+	@if [ -z "$(NODE)" ] || [ ! -x "$(NODE)" ]; then \
+	    echo "make test: node não encontrado — defina NODE=/caminho/para/node" >&2; \
+	    exit 1; \
+	fi
 	@for m in web/*.js; do $(NODE) --check "$$m" || exit 1; done
 	@echo "sintaxe ok: $$(ls web/*.js | tr '\n' ' ')"
 
