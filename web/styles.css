@@ -1,13 +1,29 @@
 /* web/styles.css — sistema visual do dashboard.
  *
- * Os tokens de cor, espaço, raio e tipografia vivem no :root como variáveis
- * CSS. A Tarefa 10 mexe na paleta e na densidade trocando valores aqui, sem
- * tocar em nenhuma regra de layout.
+ * Direção visual, decidida com a skill `frontend-design` (Tarefa 10, Passo 6).
+ * O resumo, e o porquê de cada escolha:
  *
- * A paleta é escura por escolha de densidade de dado: um painel com quatro
- * KPIs, um mapa e uma tabela de 5570 linhas é leitura longa, e o fundo claro
- * cansa mais rápido. O acento verde é o mesmo dos painéis públicos de
- * saúde, o que evita a sensação de "toy".
+ *   - **Instrumento, não painel.** Fundo escuro e acento verde porque o uso é
+ *     leitura longa sobre dado público brasileiro (IBGE e Saúde), e é a mesma
+ *     linguagem dos painéis que esses órgãos publicam. O que diferencia esta
+ *     página não é a cor: é o gráfico de linha **interrompido** nos anos que o
+ *     SIDRA não publicou, com o vão marcado em âmbar. A ousadia do design está
+ *     gasta inteira ali, e o resto fica quieto.
+ *
+ *   - **Rótulo é rótulo, não adorno.** Todos os rótulos de dados (campo de
+ *     filtro, cartão de KPI, cabeçalho de tabela, eixo do gráfico) são
+ *     minúscula em sentenca, pequenos e de peso médio. caixa-alta com
+ *     espaçamento é o calcanhar de panfleto de IA, e em painel de dado
+ *     compete com o número, que é a informação — o rótulo é o andaime.
+ *
+ *   - **Número em monoespaçada, sempre.** Todo valor que pode ser comparado
+ *     verticalmente — KPI, eixo, valor da barra, valor da tabela — usa
+ *     `--fonte-num` com algarismos tabulares. É o que alinha as casas decimais
+ *     sem nenhum ajuste manual.
+ *
+ * Os tokens de cor, espaço, raio e tipografia vivem no :root como variáveis
+ * CSS, para que a Tarefa 11 (mapa) e a 12 (CNES) desenhem na mesma página sem
+ * inventar uma segunda escala.
  */
 
 :root {
@@ -27,6 +43,9 @@
   --acento: #2fbf71;
   --acento-suave: rgba(47, 191, 113, 0.14);
   --aviso: #e3a008;
+  --lacuna: rgba(227, 160, 8, 0.45);
+  --grade: rgba(154, 167, 180, 0.16);
+  --ausencia: #5a6470;
   --erro: #f4564a;
   --erro-fundo: rgba(244, 86, 74, 0.12);
 
@@ -60,6 +79,9 @@
     --texto: #1f2730;
     --texto-suave: #5a6572;
     --texto-tenue: #8b95a1;
+    --grade: rgba(31, 39, 48, 0.12);
+    --lacuna: rgba(227, 160, 8, 0.6);
+    --ausencia: #8b95a1;
     --sombra: 0 1px 2px rgba(0, 0, 0, 0.08);
   }
 }
@@ -119,8 +141,7 @@ body {
 .cabecalho-fonte label {
   color: var(--texto-suave);
   font-size: 0.8125rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-weight: 550;
 }
 
 /* ---------------------------------------------------------------- */
@@ -161,11 +182,9 @@ body {
 
 .filtros-titulo {
   margin: 0 0 var(--e1);
-  font-size: 0.75rem;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--texto-tenue);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--texto-suave);
 }
 
 .campo {
@@ -174,10 +193,9 @@ body {
 }
 
 .campo label {
-  color: var(--texto-suave);
+  color: var(--texto-tenue);
   font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-weight: 550;
 }
 
 select,
@@ -262,9 +280,8 @@ button:focus-visible {
 
 .kpi-rotulo {
   color: var(--texto-tenue);
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  font-size: 0.75rem;
+  font-weight: 550;
 }
 
 /* Números em fonte monoespaçada: alinham na comparação vertical, que é como
@@ -305,6 +322,172 @@ button:focus-visible {
 #graficos,
 #mapa { min-height: 14rem; }
 
+/* ---------------------------------------------------------------- */
+/* Gráficos                                                          */
+/* ---------------------------------------------------------------- */
+
+/* A linha ocupa a largura toda; o anel e as barras dividem a linha de baixo
+ * quando há espaço. Um anel esticado para 900px deixa de ser anel. */
+#graficos {
+  display: grid;
+  gap: var(--e4);
+  align-content: start;
+}
+
+@media (min-width: 72rem) {
+  #graficos { grid-template-columns: minmax(0, 1fr) 17rem; }
+  #graficos > .grafico:first-child { grid-column: 1 / -1; }
+}
+
+.grafico {
+  min-width: 0;
+  padding: var(--e4);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  box-shadow: var(--sombra);
+}
+
+.grafico-topo {
+  display: grid;
+  gap: 2px;
+  margin-bottom: var(--e3);
+}
+
+.grafico-titulo {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.grafico-nota {
+  margin: 0;
+  color: var(--texto-tenue);
+  font-size: 0.75rem;
+}
+
+.grafico-corpo { min-width: 0; }
+
+.grafico-vazio {
+  margin: 0;
+  color: var(--texto-tenue);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+/* O `width: 100%` e o `height` do svg vêm como atributo de apresentação; o CSS
+ * vence atributo, e é aqui que a escala acontece. `height: auto` mantém o
+ * viewBox sem distorcer traço nem texto — esticar só a largura deformaria as
+ * letras do eixo. */
+.grafico-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 58rem;
+}
+
+.grafico-svg-anelo {
+  max-width: 9.375rem;
+  margin: 0 auto;
+}
+
+/* Grade: hairline, sem número. Ela existe para o olho medir altura contra
+ * altura, não para ser lida. */
+.grade {
+  stroke: var(--grade);
+  stroke-width: 1;
+}
+
+.eixo-valor,
+.eixo-ano {
+  fill: var(--texto-tenue);
+  font-family: var(--fonte-num);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.barra-valor {
+  fill: var(--texto-suave);
+  font-family: var(--fonte-num);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sem-dado {
+  font-size: 8.5px;
+  letter-spacing: 0.02em;
+}
+
+/* A lacuna. É o elemento único desta página que não é decoração: uma coluna
+ * tracejada em âmbar onde o ano não foi publicado, com o nome dos anos no
+ * `title`. Ligar os pontos em cima dela inventaria crescimento. */
+.lacuna {
+  stroke: var(--lacuna);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.barra {
+  /* Sem Cantos arredondados: a base retangular é o que marca a régua zero. */
+  shape-rendering: crispEdges;
+}
+
+.barra-ausente {
+  stroke-width: 2;
+  stroke-dasharray: 3 3;
+}
+
+.anel-fundo {
+  opacity: 0.25;
+}
+
+.anel-fatia {
+  stroke-linecap: butt;
+}
+
+.legenda {
+  display: grid;
+  gap: var(--e1);
+  margin: var(--e3) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+.legenda li {
+  display: grid;
+  grid-template-columns: 0.625rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--e2);
+}
+
+.legenda-cor {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 2px;
+  background: var(--ausencia);
+}
+
+/* A cor da legenda vem por atributo `data-cor`, que é escrito em JS e sobrevive
+ * ao esvaziamento do painel na consulta seguinte. */
+.legenda-cor[data-cor="#2fbf71"] { background: #2fbf71; }
+.legenda-cor[data-cor="#4aa3f0"] { background: #4aa3f0; }
+.legenda-cor[data-cor="#e3a008"] { background: #e3a008; }
+.legenda-cor[data-cor="#c07adf"] { background: #c07adf; }
+.legenda-cor[data-cor="#f4564a"] { background: #f4564a; }
+.legenda-cor[data-cor="#3fc7c7"] { background: #3fc7c7; }
+.legenda-cor[data-cor="#8f9aa8"] { background: #8f9aa8; }
+.legenda-cor[data-cor="#7fd45a"] { background: #7fd45a; }
+.legenda-cor[data-cor="#5f8de8"] { background: #5f8de8; }
+.legenda-cor[data-cor="#d86ba0"] { background: #d86ba0; }
+
+/* O movimento que existe é o da resposta ao clique: nada de entrada animada
+ * em cada cartão. Quem pediu `prefers-reduced-motion` não recebe nada. */
+@media (prefers-reduced-motion: reduce) {
+  #filtrar { transition: none; }
+}
+
 #tabela {
   background: var(--superficie);
   border: 1px solid var(--borda);
@@ -331,10 +514,8 @@ button:focus-visible {
   top: 0;
   background: var(--superficie-alta);
   color: var(--texto-suave);
-  font-size: 0.6875rem;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 #tabela td:nth-child(2),

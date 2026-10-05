@@ -37,7 +37,30 @@ import {
 } from '../web/app.js';
 import { consultar, opcoes, geo, rotaConsulta, montarQuery } from '../web/api.js';
 import { criaDoc, docDeTeste, IDS } from './fake_dom.mjs';
-import { segmentosLinha, escalaLinear, dominioValores, fatiasDonut, desenharLinha } from '../web/charts.js';
+import {
+    segmentosLinha,
+    escalaLinear,
+    dominioValores,
+    fatiasDonut,
+    desenharLinha,
+    paresDaSerie,
+    geometriaLinha,
+    geometriaBarras,
+    geometriaDonut,
+    publicacaoDoAno,
+    rotulosDoEixoX,
+    coresCategoricas,
+    corSequencial,
+    abreviaNumero,
+    encurtaTexto,
+    linha,
+    barras,
+    donut,
+    kpi,
+    valorPresente,
+    COR_AUSENCIA,
+} from '../web/charts.js';
+import { plural } from '../web/filters.js';
 
 let testes = 0;
 let falhas = 0;
@@ -889,6 +912,659 @@ teste('escalaLinear com lista vazia devolve uma função estável', () => {
 });
 
 /* ================================================================== */
+/* 8b. Gráficos: a série real do IBGE e a geometria                    */
+/* ================================================================== */
+
+/* A série de São Paulo como o servidor a devolve, medida em
+ * /api/consulta?fonte=ibge&nivel=uf&uf=35&ano=2024: 22 pontos, e 2007, 2010,
+ * 2022 e 2023 não existem. O número sozinho erra o eixo — o que dá sentido ao
+ * `serie_anos` que vem ao lado. */
+const SERIE_SP = {
+    serie_anos: [2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009,
+        2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021,
+        2024, 2025, 2026],
+    serie: [37630106, 38177742, 38709320, 39825226, 40442795, 41055734,
+        41011638, 41384039, 41587182, 41901219, 43663669, 44035304,
+        44396484, 44749699, 45094866, 45538936, 45919049, 46289333,
+        46649132, 45973194, 46081801, 46179008],
+};
+
+/** Os registros de município que a consulta devolve: `valor: null` é ausente. */
+const REGISTROS = [
+    { cod: '3550308', nome: 'São Paulo', valor: 11895578 },
+    { cod: '3304557', nome: 'Rio de Janeiro', valor: 6729894 },
+    { cod: '5300108', nome: 'Brasília', valor: 2982818 },
+    { cod: '1504752', nome: 'Mojuí dos Campos', valor: null },
+    { cod: '2200954', nome: 'Aroeiras do Itaim', valor: null },
+];
+
+/** Conta nós de uma tag na árvore, para medir o que foi desenhado. */
+function nosDe(el, tag) {
+    const alvo = String(tag).toLowerCase();
+    let n = 0;
+    const visita = (no) => {
+        for (const f of no.children || []) {
+            if (String(f.tagName).toLowerCase() === alvo) n++;
+            visita(f);
+        }
+    };
+    visita(el);
+    return n;
+}
+
+/** Todo atributo `d` desenhado na árvore. */
+function caminhosDe(el) {
+    const out = [];
+    const visita = (no) => {
+        for (const f of no.children || []) {
+            if (String(f.tagName).toLowerCase() === 'path' && f.getAttribute) {
+                out.push(String(f.getAttribute('d') || ''));
+            }
+            visita(f);
+        }
+    };
+    visita(el);
+    return out;
+}
+
+/** Percorre a árvore em profundidade, para medir os nós desenhados. */
+function* percorrer(el) {
+    for (const f of el.children || []) {
+        yield f;
+        yield* percorrer(f);
+    }
+}
+
+/** ConTAINER vazio para os testes de desenho. */
+function caixa(doc) {
+    return doc.createElement('div');
+}
+
+/* --- a lacuna interrompe a linha ------------------------------------ */
+
+teste('a série real do IBGE vira quatro segmentos, um por bloco de anos', () => {
+    const s = segmentosLinha(paresDaSerie(SERIE_SP));
+    assert.equal(s.length, 4,
+        `2001-2006, 2008-2009, 2011-2021 e 2024-2026; veio ${s.length}`);
+    assert.deepEqual(s.map((seg) => seg.length), [6, 2, 11, 3]);
+    assert.equal(s[0][0].r, 2001);
+    assert.equal(s[3][0].r, 2024, 'o quarto segmento começa em 2024');
+});
+
+teste('a série real não tem nenhum ano de lacuna desenhado', () => {
+    const anos = segmentosLinha(paresDaSerie(SERIE_SP)).flat().map((p) => p.r);
+    for (const fantasma of [2007, 2010, 2022, 2023]) {
+        assert.ok(!anos.includes(fantasma),
+            `${fantasma} não foi publicado e não pode virar ponto`);
+    }
+    assert.equal(anos.length, 22, 'os 22 pontos publicados estão todos');
+});
+
+teste('série inteira desenha em um segmento só', () => {
+    const inteiro = [];
+    for (let r = 2000; r <= 2020; r++) inteiro.push({ r, v: 1000 + r });
+    const s = segmentosLinha(inteiro);
+    assert.equal(s.length, 1, '21 anos seguidos são uma linha só');
+    assert.equal(s[0].length, 21);
+});
+
+teste('valor ausente no meio não conecta os pontos por cima', () => {
+    /* 2021 não tem valor: ligar 2020 a 2022 desenharia uma rampa que
+     * affirmaria um dado que não existe. */
+    const s = segmentosLinha([
+        { r: 2020, v: 5 }, { r: 2021, v: null }, { r: 2022, v: 7 },
+    ]);
+    assert.equal(s.length, 2, `2020 e 2022 não podem virar um segmento só; veio ${s.length}`);
+    assert.deepEqual(s.map((seg) => seg.map((p) => p.r)), [[2020], [2022]]);
+});
+
+teste('série vazia e série de um ponto não quebram', () => {
+    assert.deepEqual(segmentosLinha([]), []);
+    assert.deepEqual(segmentosLinha(null), []);
+    assert.deepEqual(segmentosLinha(undefined), []);
+    assert.deepEqual(segmentosLinha([{ r: 2024, v: 10 }]),
+        [[{ r: 2024, v: 10 }]], 'um ponto isolado é um segmento de um ponto');
+    assert.deepEqual(segmentosLinha([{ r: 2024, v: null }]), [],
+        'e um ponto sem valor não é segmento nenhum');
+});
+
+/* --- a resposta real é lida com o ano ao lado ----------------------- */
+
+teste('paresDaSerie casa cada valor com o ano dele', () => {
+    const p = paresDaSerie(SERIE_SP);
+    assert.equal(p.length, 22);
+    assert.deepEqual(p[0], { r: 2001, v: 37630106 });
+    assert.deepEqual(p[19], { r: 2024, v: 45973194 });
+    assert.deepEqual(p.map((x) => x.r), SERIE_SP.serie_anos);
+});
+
+teste('paresDaSerie sem os anos não inventa o eixo', () => {
+    /* Série sem `serie_anos` é o formato antigo. Sem o ano, cada valor vira
+     * posição e o gráfico mentiria sobre a lacuna — então não há gráfico. */
+    assert.deepEqual(paresDaSerie({ serie: [1, 2, 3] }), []);
+    assert.deepEqual(paresDaSerie({ serie_anos: [2022, 2024] }), []);
+    assert.deepEqual(paresDaSerie(null), []);
+    assert.deepEqual(paresDaSerie({}), []);
+});
+
+teste('paresDaSerie guarda a lacuna explícita do servidor', () => {
+    const p = paresDaSerie({ serie: [1, null, 3], serie_anos: [2001, 2002, 2003] });
+    assert.equal(p.length, 3, 'o ano 2002 existe; o valor é que não');
+    assert.deepEqual(p[1], { r: 2002, v: null });
+    assert.equal(segmentosLinha(p).length, 2, 'e ele corta a linha em dois');
+});
+
+/* --- geometria: números, nunca NaN ---------------------------------- */
+
+teste('a geometria da linha real tem 4 polilinhas e nenhum NaN', () => {
+    const g = geometriaLinha(paresDaSerie(SERIE_SP), { largura: 640, altura: 220 });
+    assert.equal(g.segmentos.length, 4, `veio ${g.segmentos.length}`);
+    for (const seg of g.segmentos) {
+        assert.ok(seg.pontos.length >= 1);
+        for (const p of seg.pontos) {
+            assert.ok(Number.isFinite(p.x), `x finito; veio ${p.x}`);
+            assert.ok(Number.isFinite(p.y), `y finito; veio ${p.y}`);
+        }
+        for (let i = 1; i < seg.pontos.length; i++) {
+            assert.ok(seg.pontos[i].x > seg.pontos[i - 1].x,
+                'dentro de um segmento o ano cresce para a direita');
+        }
+    }
+});
+
+teste('a lacuna é distância no eixo, não uma linha atravessada', () => {
+    /* 2009 → 2011 são dois anos, e na escala de 2001-2026 isso é uma distância
+     * real. Se o gráfico "ligasse" os pontos, o x do fim do 2º segmento seria
+     * o x do começo do 3º. */
+    const g = geometriaLinha(paresDaSerie(SERIE_SP), { largura: 640, altura: 220 });
+    const fimSegundo = g.segmentos[1].pontos[g.segmentos[1].pontos.length - 1].x;
+    const inicioTerceiro = g.segmentos[2].pontos[0].x;
+    assert.ok(inicioTerceiro - fimSegundo > 0.05 * 640,
+        `há um vão visível entre 2009 e 2011; veio ${inicioTerceiro - fimSegundo}`);
+    /* E o vão de 2021 → 2024 (três anos, dois deles sem publicação) é três
+     * vezes o vão de 2001 → 2002 (um ano). */
+    const vaoLongo = g.segmentos[3].pontos[0].x - g.segmentos[2].pontos[g.segmentos[2].pontos.length - 1].x;
+    const vaoCurto = g.segmentos[0].pontos[1].x - g.segmentos[0].pontos[0].x;
+    assert.ok(vaoLongo > vaoCurto * 2.5,
+        `2011→2024 é muito maior que 2001→2002; ${vaoLongo} vs ${vaoCurto}`);
+});
+
+teste('a geometria da linha sem pontos é vazia, não quebrada', () => {
+    const g = geometriaLinha([], {});
+    assert.deepEqual(g.segmentos, []);
+    assert.equal(g.vazio, true);
+});
+
+teste('barras com todos os valores iguais não divide por zero', () => {
+    const g = geometriaBarras([
+        { nome: 'A', valor: 5 }, { nome: 'B', valor: 5 }, { nome: 'C', valor: 5 },
+    ], { largura: 600, altura: 200 });
+    assert.equal(g.barras.length, 3);
+    for (const b of g.barras) {
+        assert.ok(Number.isFinite(b.h), `altura finita; veio ${b.h}`);
+        assert.ok(b.h > 0, 'valor 5 é barra cheia a partir de zero, não altura zero');
+    }
+});
+
+teste('barras com valor ausente não viram barra de altura zero', () => {
+    /* Uma barra de altura 0 e uma barra de valor 0 são a mesma coisa na tela:
+     * as duas diriam "zero". O ausente tem que aparecer como ausência. */
+    const g = geometriaBarras(REGISTROS, { largura: 600, altura: 200 });
+    const saoPaulo = g.barras.find((b) => b.rotulo === 'São Paulo');
+    const lacuna = g.barras.find((b) => b.rotulo === 'Mojuí dos Campos');
+    assert.ok(saoPaulo && saoPaulo.ausente === false);
+    assert.equal(saoPaulo.h > 0, true);
+    assert.equal(lacuna.ausente, true, 'o município sem dado é uma lacuna');
+    assert.equal(lacuna.h, undefined, 'e não tem altura — zero é outro dado');
+    assert.equal(g.dominio.max, 11895578,
+        `o ausente não entra no domínio; veio ${g.dominio.max}`);
+});
+
+teste('barras de valor zero têm altura zero, e não altura qualquer', () => {
+    const g = geometriaBarras([{ nome: 'A', valor: 0 }, { nome: 'B', valor: 0 }], {});
+    for (const b of g.barras) {
+        assert.equal(b.h, 0, `zero é zero; veio ${b.h}`);
+        assert.ok(Number.isFinite(b.h));
+    }
+});
+
+teste('barras ordenam por valor e mantêm a ordem da resposta', () => {
+    const g = geometriaBarras(REGISTROS, { maximo: 3 });
+    assert.deepEqual(g.barras.map((b) => b.rotulo), ['São Paulo', 'Rio de Janeiro', 'Brasília']);
+    const nulos = geometriaBarras(REGISTROS, { maximo: 99 });
+    assert.equal(nulos.barras.length, 5, 'com maximo 99 entra tudo, lacuna incluída');
+    assert.deepEqual(nulos.barras.map((b) => b.rotulo),
+        ['São Paulo', 'Rio de Janeiro', 'Brasília', 'Mojuí dos Campos', 'Aroeiras do Itaim']);
+});
+
+teste('donut com lista vazia não gera NaN nem arco fantasma', () => {
+    assert.deepEqual(fatiasDonut([]), []);
+    const g = geometriaDonut([], { tamanho: 160 });
+    assert.deepEqual(g.arcos, [], 'sem fatia não há path para desenhar');
+    assert.ok(Number.isFinite(g.anel.raio));
+    assert.ok(Number.isFinite(g.anel.cx));
+});
+
+teste('donut com fatia de tamanho zero não desenha arco', () => {
+    /* 2024 tem dado dos 5570 municípios: a fatia "sem dado" é 0%. Desenhar
+     * um arco de 0° com a flag de arco grande ambígua produz um círculo
+     * inteiro, que afirmaria que existe gente sem dado. */
+    const fatias = publicacaoDoAno(5570, 5570);
+    assert.equal(fatias.length, 2, 'as duas fatias existem');
+    assert.equal(fatias[1].valor, 0);
+    const g = geometriaDonut(fatiasDonut(fatias), { tamanho: 160 });
+    assert.equal(g.arcos.length, 1, `só a fatia com valor vira arco; veio ${g.arcos.length}`);
+    assert.ok(!/NaN/.test(g.arcos[0].d), 'o d do arco não tem NaN');
+});
+
+teste('donut de lista toda zero não desenha nada', () => {
+    assert.deepEqual(fatiasDonut([{ rotulo: 'A', valor: 0 }]), []);
+    assert.deepEqual(fatiasDonut([{ rotulo: 'A', valor: -1 }]), []);
+    assert.deepEqual(geometriaDonut(fatiasDonut([{ rotulo: 'A', valor: 0 }]), {}).arcos, []);
+});
+
+teste('publicacaoDoAno separa com dado de sem dado, e nunca de zero', () => {
+    /* Medido em /api/consulta?fonte=ibge&ano=2001: com_dado 5560 de 5570. */
+    const f = publicacaoDoAno(5570, 5560);
+    assert.deepEqual(f.map((x) => x.valor), [5560, 10]);
+    assert.equal(f[0].rotulo, 'Municípios com dado publicado');
+    assert.equal(f[1].rotulo, 'Municípios sem dado publicado');
+    assert.deepEqual(publicacaoDoAno(0, 0), [], 'sem resultado não há donut');
+    assert.deepEqual(publicacaoDoAno(null, null), []);
+    /* `com_dado` ausente não pode virar "todos têm dado": vira o oposto, e o
+     * painel inteiro ficaria verde sobre um número que ninguém mediu. */
+    const semKpi = publicacaoDoAno(5570, null);
+    assert.deepEqual(semKpi.map((x) => x.valor), [0, 5570]);
+});
+
+teste('fatiasDonut soma 360 graus e ignora valor ausente', () => {
+    const f = fatiasDonut([{ rotulo: 'a', valor: 3 }, { rotulo: 'b', valor: null }, { rotulo: 'c', valor: 1 }]);
+    assert.equal(f.length, 3, 'a fatia ausente fica, com valor 0');
+    assert.equal(f[1].valor, 0);
+    const soma = f.reduce((s, x) => s + x.tamanho, 0);
+    assert.ok(Math.abs(soma - 360) < 1e-9, `soma 360; veio ${soma}`);
+});
+
+teste('os rótulos do eixo de anos são as fronteiras dos blocos', () => {
+    /* O eixo tem que mostrar onde a série quebra, e não uma amostra de anos
+     * quaisquer. Os anos candidatos são o começo e o fim de cada segmento;
+     * o que aperta demais é descartado. */
+    const segs = segmentosLinha(paresDaSerie(SERIE_SP));
+    const px = escalaLinear(2001, 2026, 28, 612);
+    const r = rotulosDoEixoX(segs, { px, maximo: 8 });
+    assert.ok(r.length <= 8, `no máximo 8 rótulos; veio ${r.length}`);
+    assert.ok(r.includes(2001), 'o primeiro ano é fronteira');
+    assert.ok(r.includes(2021) && r.includes(2024),
+        `as fronteiras do maior corte aparecem; veio ${JSON.stringify(r)}`);
+    for (const fantasma of [2007, 2010, 2022, 2023]) {
+        assert.ok(!r.includes(fantasma), `${fantasma} não é fronteira de bloco`);
+    }
+    /* Nenhum rótulo pode cair em cima do anterior. */
+    for (let i = 1; i < r.length; i++) {
+        assert.ok(px(r[i]) - px(r[i - 1]) >= 34,
+            `${r[i - 1]} e ${r[i]} não se atropelam`);
+    }
+    assert.deepEqual(rotulosDoEixoX(
+        [[{ r: 2001, v: 1 }, { r: 2002, v: 2 }]],
+        { px: escalaLinear(2001, 2002, 28, 612), maximo: 8 }),
+    [2001, 2002], 'com poucos anos, todos aparecem');
+    assert.deepEqual(rotulosDoEixoX([], {}), []);
+    assert.deepEqual(rotulosDoEixoX(null, {}), []);
+});
+
+teste('a geometria declara as três lacunas da série real', () => {
+    const g = geometriaLinha(paresDaSerie(SERIE_SP), { largura: 640, altura: 220 });
+    assert.deepEqual(g.lacunas.map((l) => [l.de, l.ate, l.faltam]),
+        [[2006, 2008, 1], [2009, 2011, 1], [2021, 2024, 2]],
+        `os três cortes da série de São Paulo; veio ${JSON.stringify(g.lacunas)}`);
+    for (const l of g.lacunas) {
+        assert.ok(Number.isFinite(l.x) && l.x > 0 && l.x < 640);
+    }
+    assert.ok(g.lacunas[2].faltam === 2, '2022 e 2023 faltam juntos, e o desenho diz as duas');
+});
+
+teste('abreviaNumero encurta para o eixo e nunca vira 0', () => {
+    assert.equal(abreviaNumero(45973194), '46 mi');
+    assert.equal(abreviaNumero(null), '--');
+    assert.equal(abreviaNumero(-1), '--', '-1 é ausente, não número');
+    assert.notEqual(abreviaNumero(0), '0 mi');
+});
+
+teste('encurtaTexto corta sem quebrar o rótulo ao meio sem sentido', () => {
+    assert.equal(encurtaTexto('Aroeiras do Itaim', 10), 'Aroeiras…');
+    assert.equal(encurtaTexto('SP', 10), 'SP');
+    assert.equal(encurtaTexto(null, 10), '');
+});
+
+teste('a paleta devolve cores distintas e uma cor de ausência distinta', () => {
+    assert.deepEqual(coresCategoricas(0), []);
+    const c = coresCategoricas(4);
+    assert.equal(c.length, 4);
+    assert.equal(new Set(c).size, 4, 'quatro fatias, quatro cores');
+    for (const cor of c) {
+        assert.match(cor, /^#[0-9a-f]{6}$/, `cor em hex; veio "${cor}"`);
+    }
+    assert.ok(!coresCategoricas(9).includes(COR_AUSENCIA),
+        'a cor de ausência não pode ser a de uma fatia com valor');
+    assert.match(corSequencial(0), /^#[0-9a-f]{6}$/);
+    assert.notEqual(corSequencial(0), corSequencial(1));
+    assert.equal(corSequencial(-1), corSequencial(0), 'fora da faixa, o extremo');
+    assert.equal(corSequencial(2), corSequencial(1));
+});
+
+/* --- camada de desenho, com o DOM falso ---------------------------- */
+
+teste('linha desenha um path por segmento: 4, na série real', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    linha(el, paresDaSerie(SERIE_SP), { doc, titulo: 'População de São Paulo' });
+    assert.equal(nosDe(el, 'path'), 4,
+        `quatro polilinhas — a lacuna não pode virar uma só; veio ${nosDe(el, 'path')}`);
+    for (const d of caminhosDe(el)) {
+        assert.ok(!/NaN|Infinity|undefined/.test(d), `o caminho é numérico; veio "${d}"`);
+    }
+    assert.equal(nosDe(el, 'line'), 3 + 5,
+        'três marcações de lacuna e cinco linhas de grade');
+});
+
+teste('linha sem pontos não desenha svg nenhum', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    linha(el, [], { doc });
+    assert.equal(nosDe(el, 'svg'), 0, 'série vazia não vira svg');
+    assert.ok(el.textContent.includes('Sem série'),
+        `e diz o que houve; veio "${el.textContent}"`);
+});
+
+teste('linha com valor ausente no meio não desenha reta por cima', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    linha(el, [{ r: 2020, v: 5 }, { r: 2021, v: null }, { r: 2022, v: 7 }], { doc });
+    /* As duas pontas são pontos isolados: viram marcador, e não viram um
+     * caminho. Um caminho aqui seria a rampa que inventa o dado de 2021. */
+    assert.equal(caminhosDe(el).length, 0,
+        `nenhum caminho atravessa o ausente; veio ${JSON.stringify(caminhosDe(el))}`);
+    assert.equal(nosDe(el, 'circle'), 2, 'e as duas pontas aparecem como marcador');
+});
+
+teste('o eixo de anos da linha rotula as fronteiras e nenhum ano fantasma', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    linha(el, paresDaSerie(SERIE_SP), { doc });
+    const anos = el.querySelectorAll('.eixo-ano').map((n) => n.textContent.trim());
+    assert.ok(anos.length >= 4, `há rótulos de ano; veio ${JSON.stringify(anos)}`);
+    for (const fantasma of ['2007', '2010', '2022', '2023']) {
+        assert.ok(!anos.includes(fantasma),
+            `${fantasma} não foi publicado e não vira rótulo de eixo; veio ${JSON.stringify(anos)}`);
+    }
+    assert.ok(anos.includes('2001') && anos.includes('2024') && anos.includes('2026'),
+        `as fronteiras dos blocos aparecem; veio ${JSON.stringify(anos)}`);
+});
+
+teste('a marcação de lacuna nomeia os anos que faltam', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    linha(el, paresDaSerie(SERIE_SP), { doc });
+    const marcas = [...percorrer(el)].filter((n) => n.getAttribute
+        && n.getAttribute('data-lacuna'));
+    assert.deepEqual(marcas.map((n) => n.getAttribute('data-lacuna')),
+        ['2006-2008', '2009-2011', '2021-2024']);
+    const texto = marcas[2].textContent;
+    assert.ok(texto.includes('2022') && texto.includes('2023') && texto.includes('sem dado'),
+        `o vão de dois anos diz quais são; veio "${texto}"`);
+});
+
+teste('o svg da linha é reprodutível e acessível', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    linha(el, paresDaSerie(SERIE_SP), { doc, titulo: 'População de São Paulo' });
+    const svgEl = el.children[0];
+    assert.equal(svgEl.tagName, 'SVG');
+    assert.equal(svgEl.getAttribute('role'), 'img');
+    assert.equal(svgEl.getAttribute('aria-label'), 'População de São Paulo');
+    assert.equal(svgEl.getAttribute('viewBox'), '0 0 640 220');
+});
+
+teste('desenharLinha com doc explícito é o mesmo desenho', () => {
+    /* As duas portas existem: a do contrato do brief, que tira o documento do
+     * global, e a explícita, que o recebe. Precisam concordar. */
+    const doc = criaDoc();
+    const a = caixa(doc);
+    const b = caixa(doc);
+    desenharLinha(doc, a, paresDaSerie(SERIE_SP), { titulo: 'T' });
+    linha(b, paresDaSerie(SERIE_SP), { doc, titulo: 'T' });
+    assert.deepEqual(caminhosDe(a), caminhosDe(b));
+    assert.equal(nosDe(a, 'path'), 4);
+});
+
+teste('barras desenha sem NaN mesmo com valores iguais', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    barras(el, [{ nome: 'A', valor: 5 }, { nome: 'B', valor: 5 }], { doc, titulo: 'Teste' });
+    assert.equal(nosDe(el, 'rect'), 2);
+    for (const r of [...percorrer(el)].filter((n) => String(n.tagName).toLowerCase() === 'rect')) {
+        for (const k of ['x', 'y', 'width', 'height']) {
+            assert.ok(Number.isFinite(Number(r.getAttribute(k))),
+                `${k} finito no rect; veio ${r.getAttribute(k)}`);
+        }
+    }
+});
+
+teste('barras marcam a lacuna sem desenhar rect de altura zero', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    barras(el, REGISTROS, { doc, titulo: 'Municípios por valor' });
+    const lacunas = [...percorrer(el)].filter((n) => n.getAttribute
+        && n.getAttribute('data-ausente') === 'true');
+    assert.equal(lacunas.length, 2, `duas lacunas marcadas; veio ${lacunas.length}`);
+    const nulos = [...percorrer(el)].filter((n) => String(n.tagName).toLowerCase() === 'rect'
+        && Number(n.getAttribute('height')) === 0);
+    assert.equal(nulos.length, 0, 'nenhum rect de altura zero: seria lido como valor zero');
+    assert.equal(nosDe(el, 'rect'), 3, 'só os três municípios com valor têm barra');
+});
+
+teste('donut com lista vazia não escreve nenhum caminho', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    donut(el, [], { doc, titulo: 'Publicação do ano' });
+    assert.equal(caminhosDe(el).length, 0, 'sem fatia não há path');
+    assert.ok(el.textContent.includes('Sem dado'),
+        `a ausência de fatia é dita em português; veio "${el.textContent}"`);
+});
+
+teste('donut com fatias desenha arcos sem NaN', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    donut(el, fatiasDonut(publicacaoDoAno(5570, 5560)), { doc, titulo: 'Publicação do ano' });
+    const d = caminhosDe(el);
+    assert.equal(d.length, 2, `duas fatias, dois arcos; veio ${d.length}`);
+    for (const x of d) assert.ok(!/NaN/.test(x), `arco numérico; veio "${x}"`);
+    assert.ok(el.textContent.includes('5.560'), `a legenda mostra o número; veio "${el.textContent}"`);
+    assert.ok(el.textContent.includes('99,8%'),
+        `e a participação; veio "${el.textContent}"`);
+});
+
+teste('donut com uma fatia só desenha o anel inteiro em dois arcos', () => {
+    /* 100% é um arco de 360°: início e fim no mesmo ponto. Um `A` só não tem
+     * trajeto, e o anel sairia vazio. */
+    const doc = criaDoc();
+    const el = caixa(doc);
+    donut(el, fatiasDonut([{ rotulo: 'Todos', valor: 5570 }]), { doc });
+    const d = caminhosDe(el);
+    assert.equal(d.length, 1, 'uma fatia, um caminho');
+    assert.equal((d[0].match(/A/g) || []).length, 2,
+        `o anel inteiro sai como dois arcos de 180°; veio "${d[0]}"`);
+    assert.ok(!/NaN/.test(d[0]));
+});
+
+teste('kpi escreve "--" para valor ausente e nunca 0', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    kpi(el, { rotulo: 'Mínimo', valor: null }, { doc });
+    assert.ok(el.textContent.includes('Mínimo'));
+    assert.ok(el.textContent.includes('--'), `"--" no lugar do ausente; veio "${el.textContent}"`);
+    assert.ok(!/(^|\s|\D)0(\s|$|\D)/.test(el.textContent),
+        `zero nunca no lugar do ausente; veio "${el.textContent}"`);
+});
+
+teste('kpi formata o valor em português e mostra a unidade', () => {
+    const doc = criaDoc();
+    const el = caixa(doc);
+    kpi(el, { rotulo: 'Total de municípios', valor: 5570, unidade: 'municípios' }, { doc });
+    assert.ok(el.textContent.includes('5.570'),
+        `separador de milhar pt-BR; veio "${el.textContent}"`);
+    assert.ok(el.textContent.includes('municípios'));
+});
+
+teste('kpi cria o cartão quando não recebe um', () => {
+    const doc = criaDoc();
+    const cartao = kpi(null, { rotulo: 'Máximo', valor: 11895578 }, { doc });
+    assert.equal(cartao.className, 'kpi');
+    assert.equal(cartao.querySelector('.kpi-rotulo').textContent, 'Máximo');
+    assert.ok(cartao.querySelector('.kpi-valor').textContent.includes('11.895.578'));
+});
+
+/* --- o app liga os gráficos, e só depois do clique ------------------ */
+
+teste('nada é desenhado antes do clique (spec §10)', () => {
+    const { doc } = appDeTeste({});
+    /* O DOM falso não lê o index.html, então o aviso do estado vazio é
+     * reproduzido aqui à mão. Que ele exista no arquivo servido é o que
+     * `tests/test_web.sh` verifica, com grep no que o servidor entrega. */
+    doc.porId.graficos.textContent = 'Ajuste os filtros e clique em Filtrar';
+    doc.porId.kpis.textContent = '--';
+    assert.equal(nosDe(doc.porId.graficos, 'svg'), 0, 'nenhum svg antes de Filtrar');
+    assert.equal(nosDe(doc.porId.graficos, 'rect'), 0, 'nenhuma barra antes de Filtrar');
+    assert.equal(nosDe(doc.porId.graficos, 'circle'), 0, 'nenhum ponto antes de Filtrar');
+    assert.ok(doc.porId.graficos.textContent.includes('Ajuste os filtros e clique em Filtrar'),
+        `o aviso do HTML continua na tela; veio "${doc.porId.graficos.textContent}"`);
+    assert.equal(doc.porId.kpis.textContent, '--', 'e os KPIs continuam em "--"');
+});
+
+await testeAsync('depois de Filtrar o painel de gráficos troca o aviso por svg', async () => {
+    const { doc } = appDeTeste({
+        '/api/opcoes': { json: { anos: [2024], ufs: ['SP'] } },
+        '/api/consulta': {
+            json: {
+                total: 5570,
+                kpis: { min: 854, max: 11895578, media: 38165, soma: 212583750, com_dado: 5570 },
+                registros: REGISTROS,
+            },
+        },
+    });
+    await doc.porId.filtrar.click();
+    const painel = doc.porId.graficos;
+    assert.ok(nosDe(painel, 'svg') >= 2, `barras e donut desenhados; veio ${nosDe(painel, 'svg')}`);
+    assert.ok(!painel.textContent.includes('Ajuste os filtros'),
+        'o aviso de estado vazio sai depois da consulta');
+    assert.ok(painel.textContent.includes('São Paulo'), 'o dado está no painel');
+});
+
+await testeAsync('a série do IBGE vira 4 caminhos no DOM depois do clique', async () => {
+    const { doc } = appDeTeste({
+        '/api/opcoes': { json: { anos: [2024], ufs: ['35'] } },
+        '/api/consulta': {
+            json: {
+                total: 1,
+                kpis: { min: 45973194, max: 45973194, media: 45973194, soma: 45973194, com_dado: 1 },
+                registros: [{ cod: '35', nome: 'SP', valor: 45973194 }],
+                serie: SERIE_SP.serie,
+                serie_anos: SERIE_SP.serie_anos,
+            },
+        },
+    });
+    await doc.porId.filtrar.click();
+    const painel = doc.porId.graficos;
+    const linhas = [...percorrer(painel)].filter((n) => String(n.tagName).toLowerCase() === 'path'
+        && /L/.test(String(n.getAttribute('d') || '')));
+    assert.equal(linhas.length, 4,
+        `a linha do gráfico tem 4 segmentos, um por bloco de anos; veio ${linhas.length}`);
+    const anos = painel.querySelectorAll('.eixo-ano').map((n) => n.textContent.trim());
+    for (const fantasma of ['2007', '2010', '2022', '2023']) {
+        assert.ok(!anos.includes(fantasma),
+            `${fantasma} não foi publicado e não vira rótulo; veio ${JSON.stringify(anos)}`);
+    }
+    assert.ok(anos.includes('2021') && anos.includes('2024'),
+        `as fronteiras dos cortes viram rótulo; veio ${JSON.stringify(anos)}`);
+    const marcas = [...percorrer(painel)].filter((n) => n.getAttribute && n.getAttribute('data-lacuna'));
+    assert.equal(marcas.length, 3, 'e os três cortes são desenhados, não só omitidos');
+});
+
+await testeAsync('consulta sem série não desenha a linha', async () => {
+    const { doc } = appDeTeste({
+        '/api/opcoes': { json: { anos: [2024], ufs: [] } },
+        '/api/consulta': {
+            json: {
+                total: 5,
+                kpis: { min: 854, max: 11895578, media: 38165, soma: 212583750, com_dado: 5570 },
+                registros: REGISTROS,
+            },
+        },
+    });
+    await doc.porId.filtrar.click();
+    const painel = doc.porId.graficos;
+    /* Só barra e donut; nenhum caminho de linha. */
+    const linhas = [...percorrer(painel)].filter((n) => String(n.tagName).toLowerCase() === 'path'
+        && /L/.test(String(n.getAttribute('d') || '')));
+    assert.equal(linhas.length, 0, `sem série não há linha; veio ${linhas.length}`);
+    assert.ok(painel.textContent.includes('escolha uma UF'),
+        `e o painel diz o que fazer para a série aparecer; veio "${painel.textContent.slice(0, 200)}"`);
+});
+
+await testeAsync('a linha mostra a série inteira, não só o ano escolhido', async () => {
+    /* O ano do seletor é o recorte da barra e do donut; a linha é a série
+     * histórica inteira, porque é a lacuna dela que a spec §15 manda mostrar. */
+    const { app, doc } = appDeTeste({
+        '/api/opcoes': { json: { anos: [2024], ufs: ['35'] } },
+        '/api/consulta': {
+            json: {
+                total: 1,
+                kpis: { min: 45973194, max: 45973194, media: 45973194, soma: 45973194, com_dado: 1 },
+                registros: [{ cod: '35', nome: 'SP', valor: 45973194 }],
+                serie: SERIE_SP.serie,
+                serie_anos: SERIE_SP.serie_anos,
+            },
+        },
+    });
+    await doc.porId.filtrar.click();
+    const e = app.estado();
+    assert.equal(e.seriePontos.length, 22, 'os 22 pontos casados com seus anos');
+    assert.deepEqual(e.seriePontos[19], { r: 2024, v: 45973194 });
+});
+
+await testeAsync('o donut mostra quem não tem dado, e nunca um zero inventado', async () => {
+    /* Medido: ano 2001 devolve com_dado 5560 de 5570. */
+    const { doc } = appDeTeste({
+        '/api/opcoes': { json: { anos: [2001, 2024], ufs: [] } },
+        '/api/consulta': {
+            json: {
+                total: 5570,
+                kpis: { min: 800, max: 10499133, media: 31004, soma: 172385826, com_dado: 5560 },
+                registros: REGISTROS,
+            },
+        },
+    }, { ano: '2001' });
+    await doc.porId.filtrar.click();
+    const texto = doc.porId.graficos.textContent;
+    assert.ok(texto.includes('5.560'), `a fatia com dado mostra o número; veio "${texto}"`);
+    assert.ok(/sem dado publicado: 10/.test(texto),
+        `e a fatia sem dado também — 10 municípios de 2001; veio "${texto}"`);
+});
+
+await testeAsync('sem com_dado o donut não diz que todos têm dado', async () => {
+    const { doc } = appDeTeste({
+        '/api/opcoes': { json: { anos: [2024], ufs: [] } },
+        '/api/consulta': {
+            json: { total: 5570, kpis: { min: 854, max: 11895578, media: 38165 }, registros: REGISTROS },
+        },
+    });
+    await doc.porId.filtrar.click();
+    const texto = doc.porId.graficos.textContent;
+    assert.ok(/sem dado publicado: 5\.570/.test(texto),
+        `com_dado ausente vira "sem dado" no total, não 5.570 com dado; veio "${texto}"`);
+});
+
+/* ================================================================== */
 /* 9. Contrato de window.Dashboard                                     */
 /* ================================================================== */
 
@@ -912,6 +1588,81 @@ teste('estado() devolve uma cópia, não o estado interno', () => {
 teste('estadoInicial e estadoVazio descrevem a mesma tela parada', () => {
     assert.equal(estadoInicial().consultado, false);
     assert.equal(estadoVazio().consultado, false);
+});
+
+/* ------------------------------------------------------------------ */
+/* campo vazio é ausência, e não zero                                  */
+/* ------------------------------------------------------------------ */
+
+/* Achado I3 da revisão da Tarefa 10. A spec §4 e o foco de revisão 4 dizem que
+ * campo vazio e ".." são "sem dado" e nunca viram 0. Antes disto,
+ * `valorPresente('')` devolvia true, porque `Number('') === 0`, e o campo
+ * vazio de um CSV do IBGE entrava na tela como um zero medido. */
+teste('campo vazio do CSV é ausência, e não zero', () => {
+    assert.equal(valorPresente(''), false, '"" não é valor');
+    assert.equal(valorPresente('   '), false, '"   " também não é valor');
+    assert.equal(valorPresente('..'), false, '".." é o marcador do IBGE');
+});
+
+teste('zero de verdade continua sendo valor', () => {
+    /* O outro extremo do mesmo erro: tratar 0 como ausente apagaria um
+     * município que legitimamente tem zero. */
+    assert.equal(valorPresente(0), true, 'o número 0 existe');
+    assert.equal(valorPresente('0'), true, 'a string "0" existe');
+    assert.equal(valorPresente(-1), false, 'a sentinela do aggregate é ausência');
+});
+
+teste('uma barra com campo vazio não vira barra de altura zero', () => {
+    const g = geometriaBarras([{ nome: 'A', valor: '' }, { nome: 'B', valor: 5 }], {});
+    const a = g.barras.find((b) => b.rotulo === 'A');
+    assert.ok(a, 'a barra de A existe no desenho');
+    assert.equal(a.ausente, true, 'e vem marcada como ausente');
+    assert.notEqual(a.valor, 0, 'e não carrega o zero que o campo vazio produzia');
+});
+
+/* ------------------------------------------------------------------ */
+/* concordância                                                         */
+/* ------------------------------------------------------------------ */
+
+/* Achado M2 da revisão: "1 estados no resultado", "1 localidades no resultado"
+ * e o KPI "1 municípios". Três textos, o mesmo defeito. */
+teste('o substantivo concorda com o número', () => {
+    assert.equal(plural(1, 'município', 'municípios'), 'município');
+    assert.equal(plural(2, 'município', 'municípios'), 'municípios');
+    assert.equal(plural(0, 'município', 'municípios'), 'municípios', 'zero é plural');
+    assert.equal(plural(1, 'estado', 'estados'), 'estado');
+    assert.equal(plural(27, 'estado', 'estados'), 'estados');
+});
+
+testeAsync('o cartão do mapa concorda: um estado é "1 estado no resultado"', async () => {
+    const doc = docDeTeste({ nivel: 'uf', uf: '35' });
+    const resposta = {
+        total: 1,
+        kpis: { com_dado: 1 },
+        registros: [{ cod: '35', nome: 'São Paulo', valor: 1 }],
+    };
+    const app = criarApp({ doc, fetch: fetchFalso({ consulta: resposta }) });
+    await app.filtrar();
+    const texto = doc.porId.mapa.textContent || '';
+    assert.ok(texto.includes('1 estado no resultado'),
+        `o mapa escreve "1 estado no resultado"; veio "${texto}"`);
+    assert.ok(!/1 estados/.test(texto), `e nunca "1 estados"; veio "${texto}"`);
+});
+
+testeAsync('o rótulo do KPI diz "Total de estados" quando o recorte é por UF', async () => {
+    const doc = docDeTeste({ nivel: 'uf', uf: '35' });
+    const resposta = {
+        total: 1,
+        kpis: { com_dado: 1 },
+        registros: [{ cod: '35', nome: 'São Paulo', valor: 1 }],
+    };
+    const app = criarApp({ doc, fetch: fetchFalso({ consulta: resposta }) });
+    await app.filtrar();
+    const rotulos = doc.porId.kpis.querySelectorAll('.kpi-rotulo').map((e) => e.textContent);
+    assert.ok(rotulos.some((r) => r === 'Total de estados'),
+        `o primeiro KPI é "Total de estados"; veio ${JSON.stringify(rotulos)}`);
+    assert.ok(!rotulos.some((r) => r === 'Total de municípios'),
+        'e não "Total de municípios", que mentiria sobre o recorte');
 });
 
 /* ================================================================== */

@@ -339,10 +339,22 @@ static void semeia_estados(void)
     }
 }
 
+/* Apaga o payload E o .ttl irmão. Deixar o .ttl para trás é o que fazia a
+ * limpeza a seguir deixar lixo no diretório temporário: `cache_grava` grava os
+ * dois (cache.h:50), e `cache_path` só devolve o caminho do payload, então um
+ * remove() sozinho deixa metade do cache para trás. */
 static void apaga_chave(const char *chave)
 {
     char *p = cache_path(chave);
     if (p) {
+        size_t n = strlen(p);
+        char *ttl = malloc(n + 5);
+        if (ttl) {
+            memcpy(ttl, p, n);
+            memcpy(ttl + n, ".ttl", 5);   /* o \0 vem junto nos 5 bytes */
+            remove(ttl);
+            free(ttl);
+        }
         remove(p);
         free(p);
     }
@@ -684,6 +696,31 @@ static void testa_rotas(void)
 
 void test_geo(void)
 {
+    /* `make test` roda a partir da raiz do repositório, e tanto DIR_CACHE
+     * quanto DIR_PROCESSED são caminhos RELATIVOS (cache.c, geo.c:58). Sem o
+     * chdir abaixo, semeia_municipios()/semeia_estados() escreviam POR CIMA do
+     * cache real do IBGE e — este é o dano — limpa_tudo() APAGAVA a malha de
+     * verdade: os 5,78 MB de data/cache/ibge_malhas_municipios, os cinco
+     * estados, e os data/processed/geo_*.json já processados.
+     *
+     * Foi assim que a suíte destruiu o dado que o front precisa: depois de um
+     * `make test` o /api/geo/municipios respondia 503 "Execute: ./dashboard
+     * --atualizar", e recuperar exigia as malhas da rede de novo. Os testes
+     * nunca precisaram do dado real — eles semeiam fixtures sintéticos — então
+     * a remoção não comprava nada: era só colateral. O cabeçalho deste arquivo
+     * já dizia "roda SEM DADO REAL"; agora o código cumpre.
+     *
+     * O padrão é o mesmo de testa_fonte_ausente() acima, e o da C2 em
+     * tests/test_web.sh: testes que tocam o disco rodam num diretório próprio. */
+    char anterior[4096];
+    char base[] = "/tmp/opencode/geo_XXXXXX";
+    char *dir;
+
+    if (!getcwd(anterior, sizeof anterior)) anterior[0] = '\0';
+    dir = mkdtemp(base);
+    T_ASSERT(dir != NULL, "cria diretório temporário para o grupo geo");
+    T_ASSERT(chdir(dir) == 0, "entra no diretório temporário");
+
     printf("testa_fonte_ausente\n");
     testa_fonte_ausente();
 
@@ -712,4 +749,16 @@ void test_geo(void)
     testa_rotas();
 
     limpa_tudo();
+
+    /* Ainda DENTRO do temporário: rmdir só remove diretório vazio, e é isso
+     * que faz a limpeza ser uma asserção e não uma promessa — se sobrar
+     * qualquer arquivo, o grupo acusa em vez de deixar lixo. E tem de ser aqui:
+     * depois do chdir de volta, "data/cache" é o diretório de verdade. */
+    T_ASSERT(rmdir("data/cache") == 0, "data/cache do temporário ficou vazio");
+    T_ASSERT(rmdir("data/processed") == 0, "data/processed do temporário ficou vazio");
+    T_ASSERT(rmdir("data") == 0, "data/ do temporário ficou vazio");
+
+    T_ASSERT(chdir(anterior[0] ? anterior : "..") == 0,
+             "volta para o diretório original");
+    T_ASSERT(rmdir(dir) == 0, "o temporário do grupo geo ficou vazio");
 }

@@ -187,6 +187,45 @@ else
     confere 'app.js não chama consultar()/opcoes() no escopo de módulo' 0
 fi
 
+# --- o app não desenha nada sozinho (spec §10, tarefa 10) -------------
+# A mesma violação pelo outro lado: mesmo sem fetch, uma chamada de desenho no
+# escopo de módulo pinta a tela na abertura, e "tudo em branco" deixa de valer.
+# A guarda olha charts.js — que não pode desenhar fora de função — e app.js.
+for arq in charts.js app.js; do
+    # Âncora sem `\s*`: o que só acontece na coluna zero é chamada de escopo
+    # de módulo. Uma chamada indentada está dentro de alguma função — e a
+    # função só roda quando alguém pediu.
+    ACHADO=$(corpo "$BASE/$arq" | grep -nE '^(await[[:space:]]+)?(linha|barras|donut|kpi|desenhar[A-Za-z]*)\(' || true)
+    if [ -n "$ACHADO" ]; then
+        falha 'nenhum desenho no escopo de módulo' "chamada no topo: $ACHADO" "$arq"
+    else
+        confere "$arq não desenha nada no escopo de módulo" 0
+    fi
+done
+
+# O desenho é SVG do navegador, não biblioteca empacotada por baixo.
+if corpo "$BASE/charts.js" | grep -q 'createElementNS'; then
+    confere 'charts.js gera SVG com createElementNS' 0
+else
+    falha 'createElementNS' 'ausente' "charts.js"
+fi
+
+# A lacuna é a razão de existir desta tarefa: `segmentosLinha` precisa existir e
+# cortar a série onde falta ano.
+if corpo "$BASE/charts.js" | grep -q 'segmentosLinha'; then
+    confere 'charts.js quebra a série em segmentos' 0
+else
+    falha 'segmentosLinha' 'ausente' "charts.js"
+fi
+
+# O cálculo tem de ser testável em node puro: um `document.` no escopo de módulo
+# quebraria o `import` em node e derrubaria a suíte inteira do front.
+if corpo "$BASE/charts.js" | grep -nE '^\s*document\.' ; then
+    falha 'nenhum document. no escopo de módulo' 'uso do global no topo' "charts.js"
+else
+    confere 'charts.js não usa o global document no escopo de módulo' 0
+fi
+
 # --- os textos do front têm acento -----------------------------------
 # I15: a guarda anterior era `grep sem acento && ! grep com acento`, e ela não
 # podia falhar — bastava o index.html conter "Município" em qualquer canto para

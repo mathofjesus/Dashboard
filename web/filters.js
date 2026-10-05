@@ -159,6 +159,25 @@ export function textoOpcoes(valor) {
     return n.toLocaleString('pt-BR');
 }
 
+/**
+ * O substantivo na forma que o número pede.
+ *
+ * `plural(1, 'município', 'municípios')` devolve "município"; `plural(2, …)` devolve
+ * "municípios". Em português o plural já é o mais comum, e é por isso que o
+ * padrão "escreve o plural e reza" produz "1 municípios" — que foi o que
+ * aparecia no cartão do anel ("1 estados no resultado") e no cartão do mapa
+ * ("1 localidades no resultado").
+ *
+ * O que decide é 1 contra o resto, e não o valor absoluto: 0 é plural em
+ * português ("0 municípios"), 1 é singular, e -1 aqui nunca chega porque quem
+ * chama já tratou o ausente como "--" antes.
+ */
+export function plural(n, singular, plural_) {
+    const num = Number(n);
+    const um = Number.isFinite(num) && Math.abs(num) === 1;
+    return um ? singular : plural_;
+}
+
 /* ------------------------------------------------------------------ */
 /* DOM (doc injetado)                                                  */
 /* ------------------------------------------------------------------ */

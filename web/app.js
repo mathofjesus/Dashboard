@@ -18,6 +18,15 @@
 
 import { consultar, opcoes, geo, montarQuery as montarQueryApi } from './api.js';
 import {
+    barras as desenharBarrasNo,
+    donut as desenharDonutNo,
+    kpi as desenharKpiNo,
+    linha as desenharLinhaNo,
+    paresDaSerie,
+    publicacaoDoAno,
+    fatiasDonut,
+} from './charts.js';
+import {
     OPCOES_FONTE,
     OPCOES_INDICADOR,
     OPCOES_NIVEL,
@@ -28,6 +37,7 @@ import {
     indicadorPadrao,
     inteiroValido,
     textoOpcoes,
+    plural,
     paramsDaConsulta,
     preencher,
     preencherOpcoes,
@@ -46,6 +56,7 @@ export {
     montarQueryApi,
     asValidas,
     textoOpcoes,
+    plural,
     paramsDaConsulta,
     OPCOES_FONTE,
     OPCOES_INDICADOR,
@@ -86,6 +97,10 @@ export function estadoInicial() {
         registros: [],
         kpis: null,
         serie: null,
+        /* `seriePontos` é a mesma série já casada com os anos, em `{r, v}`.
+         * É o que o gráfico consome: sem o ano ao lado, cada valor viraria
+         * posição e o eixo encolheria a lacuna sem dizê-lo. */
+        seriePontos: [],
         opcoesCarregadas: false,
     };
 }
@@ -124,6 +139,7 @@ export function lerEstado(interno) {
         registros: interno.registros.slice(),
         kpis: interno.kpis ? { ...interno.kpis } : null,
         serie: interno.serie ? interno.serie.slice() : null,
+        seriePontos: interno.seriePontos.slice(),
         opcoesCarregadas: interno.opcoesCarregadas,
     };
 }
@@ -204,21 +220,27 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
     }
 
     /** Preenche os quatro KPIs. Valores ausentes viram "--", não 0. */
-    function renderKpis(k) {
+    function renderKpis(k, nivel) {
         const painel = doc.getElementById('kpis');
         if (!painel) return;
         const src = k || {};
+        /* O rótulo do primeiro KPI acompanha o nível escolhido: com
+         * `nivel=uf` o recorte é de estados, e escrever "Total de municípios"
+         * sobre um total de estados seria um erro de português que também mente
+         * sobre o conteúdo do cartão. A unidade vai embutida no rótulo, e não
+         * no campo `unidade`, porque senão o valor sai como "1 municípios" —
+         * o singular e o plural não podem ser a mesma string. */
         const campos = [
-            ['Total de municípios', src.total, 'municípios'],
+            [`Total de ${nivel === 'uf' ? 'estados' : 'municípios'}`, src.total, ''],
             ['Mínimo', src.min, ''],
             ['Máximo', src.max, ''],
             ['Média', src.media, ''],
         ];
-        /* `min`/`max`/`media` vêm de `kpis` e só existem quando houve valor
-         * no ano (I4: um ausente não é 0). Sem dado, os cartões ficam "--",
-         * que é o que `textoOpcoes(null)` escreve — nunca "0". */
         /* Reaproveita os cartões que já existem no HTML e só troca o texto,
-         * para não reconstruir a estrutura a cada consulta.
+         * para não reconstruir a estrutura a cada consulta. A escrita é
+         *delegada ao `kpi` de charts.js, que é quem sabe que ausente é
+         * "--": duas implementações de "como se escreve um número" são duas
+         * chances de uma delas escrever 0 onde não há dado.
          *
          * Cada campo é [rótulo, valor, unidade] e a **posição** é o que
          * importa, então a desestruturação é por índice. Com `{ rotulo }`
@@ -227,15 +249,11 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
          * mão, sem erro nenhum no console. */
         const cartoes = painel.querySelectorAll ? painel.querySelectorAll('.kpi') : [];
         campos.forEach(([rotulo, valor, unidade], idx) => {
-            const cartao = cartoes[idx];
-            if (!cartao) return;
-            const r = cartao.querySelector ? cartao.querySelector('.kpi-rotulo') : null;
-            const v = cartao.querySelector ? cartao.querySelector('.kpi-valor') : null;
-            if (r) r.textContent = rotulo;
-            if (v) {
-                v.textContent = textoOpcoes(valor);
-                if (unidade) v.appendChild(doc.createTextNode(` ${unidade}`));
-            }
+            const existente = cartoes[idx] || null;
+            const cartao = desenharKpiNo(existente, { rotulo, valor, unidade }, { doc });
+            /* Um campo a mais do que o HTML prevê não pode sumir em silêncio:
+             * o cartão é criado e entra no painel. */
+            if (!existente && cartao) painel.appendChild(cartao);
         });
         painel.className = '';
         return painel;
@@ -282,24 +300,127 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
         return alvo;
     }
 
-    /** Resumo textual dos gráficos; o desenho em SVG entra na Tarefa 10. */
+    /**
+     * Cartão de gráfico: título, nota e a caixa onde o SVG entra.
+     *
+     * A nota carrega o recorte ("10 maiores de 5.570 municípios") porque um
+     * gráfico sem recorte é um gráfico que promete mais do que mostra: dez
+     * barras pareciam o país inteiro se ninguém dissesse que são os dez
+     * maiores.
+     */
+    function cartao(titulo, nota) {
+        const artigo = doc.createElement('article');
+        artigo.className = 'grafico';
+        const topo = doc.createElement('header');
+        topo.className = 'grafico-topo';
+        const h = doc.createElement('h3');
+        h.className = 'grafico-titulo';
+        h.textContent = titulo;
+        topo.appendChild(h);
+        if (nota) {
+            const p = doc.createElement('p');
+            p.className = 'grafico-nota';
+            p.textContent = nota;
+            topo.appendChild(p);
+        }
+        const corpo = doc.createElement('div');
+        corpo.className = 'grafico-corpo';
+        artigo.appendChild(topo);
+        artigo.appendChild(corpo);
+        return { artigo, corpo };
+    }
+
+    /**
+     * Os gráficos da consulta.
+     *
+     * Três painéis, e cada um só aparece quando tem o que mostrar:
+     *
+     *   - a linha é a série histórica, e ela só existe quando a resposta
+     *     traz `serie` **e** `serie_anos` — o servidor só a devolve em recorte
+     *     por UF. Sem recorte, o painel diz que é preciso escolher uma UF, em
+     *     vez de inventar um eixo de anos;
+     *   - as barras são os maiores valores da resposta, com o traço de "sem
+     *     dado" no lugar do município que não tem valor publicado;
+     *   - o anel é a cobertura do ano: quantos municípios têm dado e quantos
+     *     não têm, que é a mesma informação da spec §6 que a linha expressa
+     *     no tempo.
+     */
     function renderGraficos(resposta, f) {
         const painel = doc.getElementById('graficos');
-        if (!painel) return;
+        if (!painel) return null;
         while (painel.firstChild) painel.removeChild(painel.firstChild);
-        const n = resposta && Array.isArray(resposta.registros) ? resposta.registros.length : 0;
+
         /* O indicador na tela é o rótulo com acento, não o token que vai na
          * query: "populacao" lido em tela é a fonte sem acento voltando. */
         const rotulo = rotuloIndicador(f.indicador);
-        const p = doc.createElement('p');
-        p.textContent = `${n} ${n === 1 ? 'município' : 'municípios'} de ${rotulo} em ${f.ano || '—'}.`;
-        painel.appendChild(p);
+        const recorte = recorteDe(f);
+        const total = estado.total;
+        const registros = estado.registros;
+        const pontos = estado.seriePontos;
+        const kpis = estado.kpis || {};
+
+        /* --- série histórica ------------------------------------------- */
+        const cartaoLinha = cartao(
+            `${rotulo} ao longo do tempo${recorte ? ` — ${recorte}` : ''}`,
+            pontos.length
+                ? `${pontos.length} anos publicados${f.ano ? ` · destaque em ${f.ano}` : ''}`
+                : 'Sem série neste recorte: escolha uma UF para ver a história.',
+        );
+        painel.appendChild(cartaoLinha.artigo);
+        desenharLinhaNo(cartaoLinha.corpo, pontos, {
+            doc,
+            titulo: `${rotulo} por ano${recorte ? `, ${recorte}` : ''}`,
+            cor: 'var(--acento)',
+            semSerie: 'Escolha uma UF no filtro para ver a série deste lugar ao longo do tempo.',
+        });
+
+        /* --- maiores valores -------------------------------------------- */
+        const quantos = registros.length > 10 ? 10 : registros.length;
+        const unidade = f.nivel === 'uf' ? 'estado' : 'município';
+        const cobertura = quantos < total
+            ? `${quantos} maiores de ${textoOpcoes(total)} ${plural(total, unidade, `${unidade}s`)}`
+            : (quantos === 1 ? `o único ${unidade} do resultado` : `os ${quantos} do resultado`);
+        const cartaoBarras = cartao(`${rotulo} por localidade`, cobertura);
+        painel.appendChild(cartaoBarras.artigo);
+        desenharBarrasNo(cartaoBarras.corpo, registros, {
+            doc,
+            titulo: `${rotulo} por localidade`,
+            maximo: 10,
+            cor: true,
+            semDados: 'Nenhuma localidade com dado neste recorte.',
+        });
+
+        /* --- cobertura do ano ------------------------------------------- */
+        /* `unidade` aqui é a que o anel desenha no centro — maiúscula, porque é
+         * um rótulo. O texto do cartão é outro, em minúscula e com o número
+         * deciding o plural: com um estado no resultado, "1 estados no
+         * resultado" aparecia na tela. */
+        const unidadeAnel = f.nivel === 'uf' ? 'Estados' : 'Municípios';
+        const fatias = publicacaoDoAno(total, kpis.com_dado, unidadeAnel);
+        const cartaoAnel = cartao(`Dado publicado em ${f.ano || '—'}`,
+            `${textoOpcoes(total)} ${plural(total, f.nivel === 'uf' ? 'estado' : 'município', f.nivel === 'uf' ? 'estados' : 'municípios')} no resultado`);
+        painel.appendChild(cartaoAnel.artigo);
+        desenharDonutNo(cartaoAnel.corpo, fatiasDonut(fatias), {
+            doc,
+            tamanho: 150,
+            titulo: `Dado publicado em ${f.ano || '—'}`,
+            semDados: 'Sem resultado para medir a cobertura.',
+        });
+
         painel.className = '';
         return painel;
     }
 
+    /** "SP · por UF", a partir do que está no formulário. */
+    function recorteDe(f) {
+        const partes = [];
+        if (f.uf) partes.push(f.uf);
+        if (f.nivel === 'uf') partes.push('por UF');
+        return partes.join(' · ');
+    }
+
     /** O mapa é cinza neutro até haver valor para colorir. */
-    function renderMapa(resposta) {
+    function renderMapa(resposta, nivel) {
         const painel = doc.getElementById('mapa');
         if (!painel) return;
         while (painel.firstChild) painel.removeChild(painel.firstChild);
@@ -310,7 +431,8 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
             return painel;
         }
         const p = doc.createElement('p');
-        p.textContent = `${total} localidades no resultado.`;
+        const unidade = nivel === 'uf' ? 'estado' : 'município';
+        p.textContent = `${textoOpcoes(total)} ${plural(total, unidade, `${unidade}s`)} no resultado.`;
         painel.appendChild(p);
         painel.className = '';
         return painel;
@@ -447,11 +569,18 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
                 estado.kpis = resposta && resposta.kpis && typeof resposta.kpis === 'object'
                     ? resposta.kpis : null;
                 estado.serie = resposta && Array.isArray(resposta.serie) ? resposta.serie : null;
+                /* A série só existe com recorte (a spec §8 e a decisão
+                 * documentada em api.c: sem recorte, a curva do Brasil inteiro
+                 * custaria 600 KB por consulta). O `paresDaSerie` é o que separa
+                 * "sem série" de "série sem ano", e as duas precisam dar um
+                 * gráfico honesto: a primeira diz para escolher uma UF, e a
+                 * segunda jamais acontece. */
+                estado.seriePontos = paresDaSerie(resposta);
 
-                renderKpis({ total: estado.total, ...(estado.kpis || {}) });
+                renderKpis({ total: estado.total, ...(estado.kpis || {}) }, consulta.nivel);
                 renderGraficos(resposta, consulta);
                 renderTabela(estado.registros);
-                renderMapa(resposta);
+                renderMapa(resposta, consulta.nivel);
                 return lerEstado(estado);
             } catch (e) {
                 estado.consultado = false;
