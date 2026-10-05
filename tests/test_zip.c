@@ -82,20 +82,9 @@ void test_zip(void)
         T_ASSERT(lista[0].metodo == 0, "método stored");
     }
 
-    {
-        zip_arq z;
-        memset(&z, 0, sizeof(z));
-        r = zip_abre("/tmp/opencode/t_stored.zip", &z);
-        T_ASSERT(r == 0, "zip_abre stored");
-        if (z.n >= 1) {
-            size_t outlen = 0;
-            char *buf = zip_extrai(&z, 1, &outlen); /* testando idx 1-based? */
-            /* wait - contrato diz idx, vamos testar com 0-based conforme uso normal */
-        }
-        zip_fecha(&z);
-    }
-
-    /* Melhor testar stored com índice correto */
+    /* Um bloco que perguntava "e se o índice fosse 1-based?" e não testava
+     * nada: o resultado era descartado e o compilador avisava da variável sem
+     * uso. A pergunta é boa, e a resposta está no bloco seguinte. */
     {
         zip_arq z;
         memset(&z, 0, sizeof(z));

@@ -746,8 +746,10 @@ void http_handle_client(int fd, const char *web_root)
         corpo = res.body ? strdup(res.body) : NULL;
         n_corpo = corpo ? (size_t)res.length : 0;
         res.body = corpo;
-        /* gzip para respostas API com corpo */
-        if (res.status == 200 && aceita_gzip(req.accept_encoding) && corpo && n_corpo >= 0) {
+        /* gzip para respostas API com corpo. `n_corpo >= 0` era uma tautologia
+         * sobre um `size_t` e o compilador avisava: a condição que importa é
+         * haver corpo. */
+        if (res.status == 200 && aceita_gzip(req.accept_encoding) && corpo) {
             unsigned char *gz = gzip_mem((const unsigned char *)corpo, n_corpo, &n_corpo);
             if (gz) {
                 free(corpo);

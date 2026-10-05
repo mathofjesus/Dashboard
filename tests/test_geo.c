@@ -34,6 +34,18 @@
     fprintf(stderr, "FALHOU: %s (%s:%d)\n", (msg), __FILE__, __LINE__); \
     exit(1); } } while (0)
 
+/* `http_response.body` e `const char *` porque o servidor tambem o preenche com
+ * ponteiro para buffer estatico (res->filename). O corpo em memoria, esse, e
+ * malloc'd e precisa ser devolvido — e `free()` de um `const char *` e um
+ * `-Wdiscarded-qualifiers` em cada chamador, que e o jeito do compilador
+ * avisar que a distincao existe. O helper e a distincao. */
+static void libera_body(http_response *res)
+{
+    free((char *)res->body);
+    res->body = NULL;
+    res->length = 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* chaves e caminhos                                                   */
 /* ------------------------------------------------------------------ */
@@ -601,11 +613,11 @@ static void testa_rotas(void)
     T_ASSERT(api_roteia(&req, &res) == 503, "api/geo/municipios sem malha -> 503");
     T_ASSERT(res.body && strstr(res.body, "--atualizar") != NULL,
              "o 503 diz o comando de atualizacao");
-    free(res.body);
+    libera_body(&res);
 
     req.path = (char *)"api/geo/estados";
     T_ASSERT(api_roteia(&req, &res) == 503, "api/geo/estados sem malha -> 503");
-    free(res.body);
+    libera_body(&res);
 
     /* Com dado processado: 200, gzip ligado, GeoJSON no corpo. */
     T_ASSERT(geo_prepara(GEO_MUNICIPIOS) == 0, "prepara para o teste de rota");
@@ -620,7 +632,7 @@ static void testa_rotas(void)
              "o corpo e a FeatureCollection");
     T_ASSERT(res.length > 0, "o 200 tem comprimento");
     T_ASSERT(res.gzip == 1, "geometria vai comprimida");
-    free(res.body);
+    libera_body(&res);
 
     /* api/mapa/uf é a rota do mapa: mesma coisa, filtrada. */
     req.path = (char *)"api/mapa/uf";
@@ -628,17 +640,17 @@ static void testa_rotas(void)
     T_ASSERT(api_roteia(&req, &res) == 200, "api/mapa/uf com SP -> 200");
     T_ASSERT(res.body && strstr(res.body, "\"3509502\"") != NULL,
              "api/mapa/uf?uf=sp traz Sao Paulo");
-    free(res.body);
+    libera_body(&res);
 
     req.query = (char *)"uf=ro&nivel=municipio";
     T_ASSERT(api_roteia(&req, &res) == 200, "api/mapa/uf com RO -> 200");
     T_ASSERT(res.body && strstr(res.body, "\"1100015\"") != NULL,
              "api/mapa/uf?uf=ro traz Porto Velho");
-    free(res.body);
+    libera_body(&res);
 
     req.query = (char *)"uf=zz";
     T_ASSERT(api_roteia(&req, &res) == 400, "api/mapa/uf com UF invalida -> 400");
-    free(res.body);
+    libera_body(&res);
 
     /* Caminho desconhecido é 404, não "qualquer coisa serve os estados".
      * A versão anterior escolhia o nível com strstr(path,"municipios"), então
@@ -649,11 +661,11 @@ static void testa_rotas(void)
     T_ASSERT(api_roteia(&req, &res) == 404, "api/geo/naoexiste -> 404");
     T_ASSERT(res.body && strstr(res.body, "FeatureCollection") == NULL,
              "a resposta de 404 nao pode ser uma colecao");
-    free(res.body);
+    libera_body(&res);
 
     req.path = (char *)"api/mapa/qualquer-coisa";
     T_ASSERT(api_roteia(&req, &res) == 404, "api/mapa/qualquer-coisa -> 404");
-    free(res.body);
+    libera_body(&res);
 
     /* E os dois caminhos válidos continuam servindo o nível certo. */
     T_ASSERT(geo_prepara(GEO_ESTADOS) == 0, "prepara estados para o teste de rota");
@@ -661,10 +673,10 @@ static void testa_rotas(void)
     T_ASSERT(api_roteia(&req, &res) == 200, "api/geo/estados -> 200");
     T_ASSERT(res.body && strstr(res.body, "\"codarea\":\"11\"") != NULL,
              "api/geo/estados traz a colecao de estados");
-    free(res.body);
+    libera_body(&res);
     req.path = (char *)"api/geo/municipios";
     T_ASSERT(api_roteia(&req, &res) == 200, "api/geo/municipios -> 200");
-    free(res.body);
+    libera_body(&res);
 
     remove(P_MUN);
     remove(P_EST);
