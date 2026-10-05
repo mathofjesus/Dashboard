@@ -53,7 +53,19 @@ int http_serve_range(const char *root, const char *req_path,
 /* Escreve n bytes, repetindo até acabar. Devolve 0 ou -1. */
 int http_send_all(int fd, const void *buf, size_t n);
 
-/* Faz o laço listen/accept/fork. Só retorna em erro fatal. */
+/* Cria o socket e faz bind+listen. Devolve o descritor, ou -1.
+ *
+ * Separado do laço para que quem chama possa dizer "Dashboard em
+ * http://…/" só depois que a porta é de fato sua. A versão antiga imprimia o
+ * endereço antes do bind, e uma porta ocupada produzia uma linha de banner
+ * seguida de "bind: Address already in use" — duas linhas que se contradizem,
+ * das quais a primeira é a que a pessoa lê. */
+int http_prepara_servidor(int porta);
+
+/* Laço accept/fork. Só retorna em erro fatal. */
+int http_serve_loop(int srv, const char *web_root);
+
+/* Atalho: prepara e serve. */
 int http_listen_and_serve(int porta, const char *web_root);
 
 /* Atende uma requisição em fd e fecha a conexão. */

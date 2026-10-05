@@ -878,7 +878,7 @@ static void instala_tratadores(void)
     sigaction(SIGPIPE, &sa, NULL);
 }
 
-int http_listen_and_serve(int porta, const char *web_root)
+int http_prepara_servidor(int porta)
 {
     int srv, opt = 1;
     struct sockaddr_in addr;
@@ -907,6 +907,12 @@ int http_listen_and_serve(int porta, const char *web_root)
         close(srv);
         return -1;
     }
+    return srv;
+}
+
+int http_serve_loop(int srv, const char *web_root)
+{
+    if (srv < 0) return -1;
 
     instala_tratadores();
 
@@ -935,4 +941,13 @@ int http_listen_and_serve(int porta, const char *web_root)
 
     close(srv);
     return -1;
+}
+
+int http_listen_and_serve(int porta, const char *web_root)
+{
+    int srv = http_prepara_servidor(porta);
+
+    if (srv < 0)
+        return -1;
+    return http_serve_loop(srv, web_root);
 }

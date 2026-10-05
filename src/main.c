@@ -294,18 +294,33 @@ int main(int argc, char **argv)
         }
         printf("Modelo: %zu municípios, %zu anos, %zu UFs (%s)\n",
                m.n_local, m.n_anos, m.n_ufs, MODELO_IDX);
-
-        printf("Dashboard em http://127.0.0.1:%d/ (web: %s)\n", porta, web_root);
+        /* stdout é bufferizado quando vai para arquivo, stderr não. Sem este
+         * flush, a linha do modelo aparece DEPOIS da mensagem de erro quando
+         * a saída está redirecionada — que é exatamente o caso de quem está
+         * lendo um log. */
         fflush(stdout);
 
         /* O modelo é carregado uma vez e apontado na API; cada requisição lê
          * dele, em vez de reler o arquivo em disco. */
         api_set_model(&m);
 
-        if (http_listen_and_serve(porta, web_root) != 0) {
-            fprintf(stderr, "não consegui servir na porta %d\n", porta);
-            model_libera(&m);
-            return 1;
+        /* A porta é tomado ANTES do banner. A ordem antiga imprimia
+         * "Dashboard em http://127.0.0.1:8080/" e só depois descobria que a
+         * porta estava ocupada, o que dá duas linhas que se contradizem —
+         * e a que a pessoa copia para o navegador é a errada. */
+        {
+            int srv = http_prepara_servidor(porta);
+            if (srv < 0) {
+                fprintf(stderr,
+                        "não consegui servir na porta %d (já está em uso?)\n",
+                        porta);
+                model_libera(&m);
+                return 1;
+            }
+            printf("Dashboard em http://127.0.0.1:%d/ (web: %s)\n",
+                   porta, web_root);
+            fflush(stdout);
+            http_serve_loop(srv, web_root);
         }
         model_libera(&m);
     }
