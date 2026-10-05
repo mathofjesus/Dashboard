@@ -217,21 +217,29 @@ int main(int argc, char **argv)
             continue;
         }
 
-        /* `--atualizar` e `--atualizar=ibge`. A forma com valor colado e a
-         * forma com valor separado são as duas aceitas; sem valor, vale "ibge",
-         * que é o que o guia de uso manda rodar. */
+        /* `--atualizar`, `--atualizar ibge` e `--atualizar=ibge`.
+         *
+         * A forma com valor separado é a que está no guia de uso, e era a que
+         * engolia o valor: sem consumir o `argv` seguinte, o `ibge` caía no
+         * laço como "opção desconhecida" e o comando saía 2 sem baixar nada —
+         * a mesma falha de `--atualizar` ignorar o valor que a revisão
+         * apontou, agora pela metade. */
+        r = pega_opcao(argc, argv, &i, "--atualizar", &valor);
+        if (r == 1) {
+            if (!*valor) {
+                fprintf(stderr, "--atualizar sem fonte: use ibge ou malhas\n");
+                return 2;
+            }
+            pedir_atualizar = 1;
+            fonte = valor;
+            continue;
+        }
+        /* r == 0 é "esta opção não é a minha"; r == -1 só acontece quando o
+         * argumento É `--atualizar` e é o último, que é a forma sem valor:
+         * vale "ibge", que é o que o guia manda rodar. */
         if (strcmp(argv[i], "--atualizar") == 0) {
             pedir_atualizar = 1;
             fonte = NULL;
-            continue;
-        }
-        if (strncmp(argv[i], "--atualizar=", 12) == 0) {
-            pedir_atualizar = 1;
-            fonte = argv[i] + 12;
-            if (!*fonte) {
-                fprintf(stderr, "--atualizar= sem fonte\n");
-                return 2;
-            }
             continue;
         }
         if (strcmp(argv[i], "--geo-info") == 0) {
