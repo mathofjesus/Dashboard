@@ -818,6 +818,24 @@ void http_handle_client(int fd, const char *web_root)
 envia:
     envia_resposta(fd, &res, extra, so_cabecalho);
     free(corpo);
+    /* SHUT_WR antes de close(), e não close() direto.
+     *
+     * Sem o shutdown, o close() de um socket que ainda tem dados a enviar
+     * depende de o kernel conseguir esvaziar o buffer de saída antes de
+     * mandar o FIN. Quando não consegue — resposta grande, buffer cheio,
+     * cliente que não leu — ele manda RST em vez de FIN, e o cliente vê
+     * "conexão reiniciada" no meio do corpo, mesmo tendo recebido todos os
+     * bytes.
+     *
+     * Isso não é teórico: `curl` e o navegador aguentam, e o `fetch` do node
+     * (undici) NÃO — ele estourava com `assert(!this.paused)` ao ler
+     * `/api/geo/municipios`, que é 290 KB comprimidos. Nenhuma ferramenta de
+     * teste feita em node conseguia ler a geometria, que é justamente a
+     * resposta que o mapa consome.
+     *
+     * O shutdown diz "acabei de escrever" explicitamente; o close vem depois
+     * e só libera o descritor. */
+    shutdown(fd, SHUT_WR);
     close(fd);
 }
 
