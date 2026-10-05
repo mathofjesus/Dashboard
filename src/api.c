@@ -595,6 +595,155 @@ int api_roteia(const http_request *req, http_response *res)
     }
 
     /* ---------------------------------------------------------------- */
+    /* /api/valores — o coroplético                                      */
+    /* ---------------------------------------------------------------- */
+    /*                                                                  */
+    /* Por que isto existe: o mapa precisa do valor de TODAS as          */
+    /* localidades do recorte, e /api/consulta entrega só a página. Com   */
+    /* `limite=100`, a tabela traz 100 linhas e o resto do Brasil        */
+    /* aparecia no mapa com a cor de ausência — que significa "sem dado" */
+    /* — quando na verdade tem dado e só não foi paginado. O mapa        */
+    /* mentia, e a mentira era do tipo que a spec §4 proíbe.             */
+    /*                                                                  */
+    /* A resposta é propositalmente mais curta que /api/consulta: são só  */
+    /* `codarea → valor`, sem nome e sem o resto do envelope. Medido com  */
+    /* os 5570 municípios de 2024: 87.016 bytes contra 299.532 da        */
+    /* consulta completa, 3,4× menos para o mesmo dado.                   */
+    /*                                                                  */
+    /* `nomes=1` acrescenta `codarea → nome`. O nome é o que o clique no   */
+    /* mapa mostra, e ele não muda com o filtro — por isso ele é pedido   */
+    /* uma vez e memorizado pelo navegador, enquanto os valores são       */
+    /* buscados a cada consulta.                                         */
+    /* ---------------------------------------------------------------- */
+    if (strcmp(path, "api/valores") == 0) {
+        char *q_ind = text_query_get(query, "indicador");
+        char *q_uf = text_query_get(query, "uf");
+        char *q_ano = text_query_get(query, "ano");
+        char *q_nivel = text_query_get(query, "nivel");
+        char *q_nomes = text_query_get(query, "nomes");
+        char *ind_dec = text_url_decode(q_ind ? q_ind : "");
+        char *uf_dec = text_url_decode(q_uf ? q_uf : "");
+        char *ano_dec = text_url_decode(q_ano ? q_ano : "");
+        char *nivel_dec = text_url_decode(q_nivel ? q_nivel : "");
+        char *nomes_dec = text_url_decode(q_nomes ? q_nomes : "");
+        indicador ind;
+        int ano = 0;
+        int nivel_uf = 0;
+        int quer_nomes = 0;
+        char erro[256];
+        consulta c;
+        kpis k;
+        acc a;
+        size_t i;
+        int status;
+
+        if (!m || m->n_local == 0 || m->n_anos == 0) {
+            status = responde_erro(res, 503,
+                                   "não há dado processado: rode "
+                                   "./dashboard --atualizar ibge");
+            goto valores_fim;
+        }
+
+        ind = indicador_de(ind_dec);
+        if (ind >= IND_TOTAL) {
+            status = responde_erro(res, 400, "indicador inválido");
+            goto valores_fim;
+        }
+
+        /* O ano é obrigatório aqui como em /api/consulta: um coroplético sem
+         * ano é um mapa de quê? E a validação é a mesma, com a mesma
+         * mensagem, para que o front receba um texto que ele já sabe
+         * mostrar. */
+        if (ano_dec[0] == '\0' || parse_int(ano_dec, &ano) != 0 ||
+            ano < 1900 || ano > 2200) {
+            char msg[160];
+            snprintf(msg, sizeof msg, "ano \"%s\" inválido",
+                     ano_dec[0] ? ano_dec : "");
+            status = responde_erro(res, 400, msg);
+            goto valores_fim;
+        }
+
+        if (nivel_dec[0]) {
+            if (strcasecmp_safe(nivel_dec, "uf") == 0) nivel_uf = 1;
+            else if (strcasecmp_safe(nivel_dec, "municipio") == 0 ||
+                     strcasecmp_safe(nivel_dec, "município") == 0) nivel_uf = 0;
+            else {
+                char msg[192];
+                snprintf(msg, sizeof msg,
+                         "nível \"%s\" inválido: use municipio ou uf", nivel_dec);
+                status = responde_erro(res, 400, msg);
+                goto valores_fim;
+            }
+        }
+
+        /* Só o que é verdade é 1: `nomes=0`, `nomes=false` e `nomes=nao`
+         * têm de pedir a resposta curta, e `nomes=` vazio também — senão um
+         * `nomes` sem valor no lugar de flag custaria 90 KB sem ninguém pedir. */
+        quer_nomes = (strcmp(nomes_dec, "1") == 0 ||
+                      strcasecmp_safe(nomes_dec, "true") == 0 ||
+                      strcasecmp_safe(nomes_dec, "sim") == 0);
+
+        /* `limite` é 0 de propósito: aqui a paginação não existe. A resposta
+         * é o conjunto inteiro que satisfaz o filtro, e quem chama já pediu
+         * para ver o Brasil inteiro. */
+        erro[0] = '\0';
+        if (aggregate_consulta(m, ind, nivel_uf,
+                               uf_dec[0] ? uf_dec : NULL, ano, NULL, NULL, 0,
+                               &c, &k, erro, sizeof erro) != 0) {
+            status = responde_erro(res, 400, erro[0] ? erro : "erro");
+            goto valores_fim;
+        }
+
+        acc_init(&a);
+        acc_printf(&a, "{\"total\":%d,\"com_dado\":%d", k.linhas, k.com_dado);
+        acc_puts(&a, ",\"valores\":{");
+        for (i = 0; i < c.n; i++) {
+            /* Um ausente é -1, a sentinela do aggregate, e vai como null: é
+             * assim que o front distingue "não tem dado" de "tem zero", e é
+             * a distinção que a spec §4 exige. */
+            if (i) acc_puts(&a, ",");
+            acc_printf(&a, "\"%s\":%s", c.cod[i], c.valor[i] < 0 ? "null" : "");
+            if (c.valor[i] >= 0) {
+                char buf[16];
+                snprintf(buf, sizeof buf, "%d", c.valor[i]);
+                acc_puts(&a, buf);
+            }
+        }
+        acc_puts(&a, "}");
+        if (quer_nomes) {
+            acc_puts(&a, ",\"nomes\":{");
+            for (i = 0; i < c.n; i++) {
+                char *esc = text_json_escape(c.nome[i]);
+                if (i) acc_puts(&a, ",");
+                acc_printf(&a, "\"%s\":\"%s\"", c.cod[i], esc ? esc : "");
+                free(esc);
+            }
+            acc_puts(&a, "}");
+        }
+        acc_puts(&a, "}");
+
+        if (a.erro) {
+            acc_free(&a);
+            aggregate_libera(&c);
+            status = responde_erro(res, 500, "erro interno ao montar a resposta");
+            goto valores_fim;
+        }
+
+        res->status = 200;
+        res->content_type = "application/json; charset=utf-8";
+        res->body = a.p;
+        res->length = (long long)a.n;
+        res->gzip = 1;              /* pares repetitivos: comprime muito bem */
+        aggregate_libera(&c);
+        status = 200;
+
+    valores_fim:
+        free(q_ind); free(q_uf); free(q_ano); free(q_nivel); free(q_nomes);
+        free(ind_dec); free(uf_dec); free(ano_dec); free(nivel_dec); free(nomes_dec);
+        return status;
+    }
+
+    /* ---------------------------------------------------------------- */
     /* rotas de geometria                                               */
     /*                                                                   */
     /* A malha é o desenho do mapa, não dado: o navegador a busca no load e a */

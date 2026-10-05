@@ -1971,6 +1971,119 @@ teste('o ano selecionado por padrão é o mais recente', () => {
         `com a lista em ordem crescente, o ano escolhido é o maior; veio "${select.value}"`);
 });
 
+/* ------------------------------------------------------------------ */
+/* o mapa come o recorte inteiro, e não a página                       */
+/* ------------------------------------------------------------------ */
+
+/* O defeito que motivou /api/valores: com `limite=100`, a tabela trazia 100
+ * linhas e o resto dos 5570 municípios era pintado com a cor de AUSÊNCIA —
+ * que significa "sem dado" — quando 5560 têm dado naquele ano. O mapa dizia
+ * "não sei" onde o servidor só não paginou. */
+
+const DOIS_COM_NOMES = {
+    total: 2,
+    com_dado: 1,
+    valores: { 1100015: 5, 3550308: null },
+    nomes: { 1100015: 'Porto Velho', 3550308: 'São Paulo' },
+};
+
+testeAsync('a consulta do mapa vai a /api/valores, e não a /api/consulta', async () => {
+    const { app, fetch } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: { total: 2, kpis: { com_dado: 1 }, registros: [] } },
+        '/api/valores': { json: DOIS_COM_NOMES },
+    });
+
+    await app.filtrar();
+
+    const pedidos = fetch.urls().filter((u) => u.includes('/api/valores'));
+    assert.equal(pedidos.length, 1,
+        `o mapa pede os valores uma vez; pediu ${JSON.stringify(pedidos)}`);
+    assert.ok(pedidos[0].includes('nomes=1'),
+        `e na primeira vez pede os nomes; veio "${pedidos[0]}"`);
+});
+
+testeAsync('o mapa pinta um município que não está na página da tabela', async () => {
+    /* O teste do defeito: 5570 no mapa, 100 na tabela. Com uma página que não
+     * traz o município, ele tem de sair NA COR DA ESCALA se o mapa recebeu o
+     * recorte inteiro, e em cinza se o mapa comeu só a página. */
+    const paginaDeUm = {
+        total: 2,
+        kpis: { com_dado: 1 },
+        registros: [{ cod: '1100015', nome: 'Porto Velho', valor: 5 }],
+    };
+    const { app, doc } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: paginaDeUm },
+        '/api/valores': { json: { total: 2, com_dado: 2, valores: { 1100015: 5, 3550308: 900 }, nomes: null } },
+    });
+
+    await app.filtrar();
+
+    const sp = tagsDe(doc.porId.mapa, 'path')
+        .find((p) => p.getAttribute('data-codarea') === '3550308');
+    assert.ok(sp, 'o município fora da página tem <path> no mapa');
+    assert.ok(sp.getAttribute('fill'),
+        `e tem cor da escala — veio da página sem ele, e aí estaria em cinza; fill=${sp.getAttribute('fill')}`);
+    assert.equal(sp.getAttribute('class'), null, 'e não está marcado como ausência');
+});
+
+testeAsync('os nomes são buscados uma vez, e os valores a cada consulta', async () => {
+    const { app, fetch } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: { total: 2, kpis: { com_dado: 1 }, registros: [] } },
+        '/api/valores': { json: DOIS_COM_NOMES },
+    });
+
+    await app.filtrar();
+    await app.filtrar();
+
+    const pedidos = fetch.urls().filter((u) => u.includes('/api/valores'));
+    assert.equal(pedidos.length, 2, `os valores são buscados a cada consulta: ${pedidos.length}`);
+    assert.ok(pedidos[0].includes('nomes=1'), 'a primeira leva os nomes');
+    assert.ok(!pedidos[1].includes('nomes=1'),
+        `a segunda não: eles são imutáveis e já estão memorizados; veio "${pedidos[1]}"`);
+});
+
+testeAsync('o clique usa o nome vindo de /api/valores, e mostra o valor certo', async () => {
+    /* 3550308 não está na página da tabela. Se o nome viesse só de lá, o
+     * clique mostraria "Município 3550308". */
+    const { app, doc } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: { total: 2, kpis: { com_dado: 2 }, registros: [{ cod: '1100015', nome: 'Porto Velho', valor: 5 }] } },
+        '/api/valores': { json: { total: 2, com_dado: 1, valores: { 1100015: 5, 3550308: null }, nomes: { 1100015: 'Porto Velho', 3550308: 'São Paulo' } } },
+    });
+
+    await app.filtrar();
+    const sp = tagsDe(doc.porId.mapa, 'path')
+        .find((p) => p.getAttribute('data-codarea') === '3550308');
+    await sp.click();
+
+    const detalhe = doc.porId.mapa.querySelector('.mapa-detalhe');
+    assert.ok(detalhe, 'o clique escreveu o detalhe');
+    assert.ok(detalhe.textContent.includes('São Paulo'),
+        `com o nome de /api/valores; veio "${detalhe.textContent}"`);
+    assert.ok(/sem dado/.test(detalhe.textContent),
+        `e null no servidor é "sem dado", não 0; veio "${detalhe.textContent}"`);
+});
+
+testeAsync('/api/valores falhando não derruba os KPIs nem a tabela', async () => {
+    const { app, doc } = appDeTeste({
+        '/api/geo/municipios': { json: MALHA_DOIS },
+        '/api/consulta': { json: { total: 2, kpis: { min: 5, max: 5, media: 5, com_dado: 1 }, registros: [{ cod: '1100015', nome: 'Porto Velho', valor: 5 }] } },
+        '/api/valores': new Error('rede'),
+    });
+
+    await app.filtrar();
+
+    const valores = [...doc.porId.kpis.querySelectorAll('.kpi-valor')].map((e) => e.textContent.trim());
+    assert.ok(valores[0] === '2', `o KPI total sobreviveu; veio "${valores[0]}"`);
+    assert.equal(tagsDe(doc.porId.tabela, 'tr').length > 0, true,
+        'e a tabela foi montada');
+    assert.ok(doc.porId.mapa.textContent.length > 0,
+        'o mapa mostra algum aviso em vez de sumir');
+});
+
 /* ================================================================== */
 
 if (falhas > 0) {

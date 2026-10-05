@@ -364,6 +364,111 @@ static void teste_sem_modelo(void)
     libera_body(&res);
 }
 
+/* ------------------------------------------------------------------ */
+/* /api/valores — o que alimenta o coroplético                          */
+/* ------------------------------------------------------------------ */
+
+/* A rota existe porque o mapa precisa do valor de TODAS as localidades do
+ * recorte: /api/consulta devolve a página, e com `limite=100` o resto do
+ * Brasil aparecia no mapa com a cor de ausência — que significa "sem dado" —
+ * quando na verdade tem dado e só não foi paginado. */
+
+static void teste_valores(void)
+{
+    http_response res;
+
+    /* Só valores, sem nome: é o que o mapa pede a cada consulta. */
+    res = chama("api/valores", "indicador=populacao&ano=2024");
+    T_ASSERT(res.status == 200, "valores responde 200");
+    T_ASSERT(res.body != NULL, "valores tem corpo");
+    T_ASSERT(strstr(res.body, "\"total\":3") != NULL,
+             "total é o do conjunto inteiro, não o da página");
+    T_ASSERT(strstr(res.body, "\"valores\":{") != NULL, "chave valores");
+    T_ASSERT(strstr(res.body, "\"1100015\":1500") != NULL,
+             "Porto Velho com o valor do ano");
+    T_ASSERT(strstr(res.body, "\"nomes\"") == NULL,
+             "e sem os nomes, que ninguém pediu");
+    libera_body(&res);
+
+    /* O ausente é a razão de a rota existir separada: ele precisa sair como
+     * null, nunca como -1 nem como 0. Rio Branco não tem valor em 2021. */
+    res = chama("api/valores", "indicador=populacao&ano=2021");
+    T_ASSERT(res.status == 200, "2021 responde 200");
+    T_ASSERT(strstr(res.body, "\"1200401\":null") != NULL,
+             "Rio Branco sem dado em 2021 sai como null");
+    T_ASSERT(strstr(res.body, "\":-1") == NULL,
+             "e a sentinela -1 não escapa como número — viraria valor negativo no mapa");
+    T_ASSERT(strstr(res.body, "\"1100015\":1200") != NULL,
+             "e os que têm dado continuam com o número deles");
+    libera_body(&res);
+
+    /* `nomes=1` traz o nome, que o clique no mapa mostra. */
+    res = chama("api/valores", "indicador=populacao&ano=2024&nomes=1");
+    T_ASSERT(res.status == 200, "com nomes responde 200");
+    T_ASSERT(strstr(res.body, "\"nomes\":{") != NULL, "chave nomes");
+    T_ASSERT(strstr(res.body, "Porto Velho") != NULL, "o nome do município");
+    T_ASSERT(strstr(res.body, "\"1100015\":\"Porto Velho\"") != NULL,
+             "o nome amarrado ao código certo");
+    libera_body(&res);
+
+    /* Só o que é verdade liga o nome: um `nomes` sem valor é uma flag vazia,
+     * não um "sim". */
+    res = chama("api/valores", "indicador=populacao&ano=2024&nomes=0");
+    T_ASSERT(res.status == 200, "nomes=0 responde 200");
+    T_ASSERT(strstr(res.body, "\"nomes\"") == NULL, "nomes=0 não traz o nome");
+    libera_body(&res);
+
+    /* `nivel=uf` agrega por UF: o mapa de estado tem 27 caminhos, não 5570. */
+    res = chama("api/valores", "indicador=populacao&ano=2024&nivel=uf");
+    T_ASSERT(res.status == 200, "nivel=uf responde 200");
+    T_ASSERT(strstr(res.body, "\"total\":3") != NULL, "as três UFs do fixture");
+    T_ASSERT(strstr(res.body, "\"1100015\":") == NULL,
+             "e o código de município não aparece como chave de linha de UF");
+    T_ASSERT(res.length < 400, "e a resposta é pequena");
+    libera_body(&res);
+
+    /* `uf=` recorta: em nível de UF é a própria UF que está na linha. */
+    res = chama("api/valores", "indicador=populacao&ano=2024&nivel=uf&uf=ro");
+    T_ASSERT(res.status == 200, "uf=ro responde 200");
+    T_ASSERT(strstr(res.body, "\"total\":1") != NULL, "só Rondônia");
+    libera_body(&res);
+
+    /* Os erros são os mesmos de /api/consulta, com o mesmo texto: o front já
+     * sabe mostrar essa mensagem. */
+    res = chama("api/valores", "indicador=populacao");
+    T_ASSERT(res.status == 400, "sem ano é 400");
+    T_ASSERT(res.body && strstr(res.body, "erro") != NULL, "com envelope de erro");
+    libera_body(&res);
+
+    res = chama("api/valores", "indicador=populacao&ano=1899");
+    T_ASSERT(res.status == 400, "ano inexistente é 400");
+    libera_body(&res);
+
+    res = chama("api/valores", "indicador=inexistente&ano=2024");
+    T_ASSERT(res.status == 400, "indicador inválido é 400");
+    libera_body(&res);
+
+    res = chama("api/valores", "indicador=populacao&ano=2024&nivel=pais");
+    T_ASSERT(res.status == 400, "nível inválido é 400");
+    libera_body(&res);
+}
+
+static void teste_valores_sem_modelo(void)
+{
+    http_response res;
+
+    api_set_model(NULL);
+    res = chama("api/valores", "indicador=populacao&ano=2024");
+    T_ASSERT(res.status == 503,
+             "sem dado processado é 503 com o comando — não 200 com mapa vazio");
+    T_ASSERT(res.body != NULL && strstr(res.body, "--atualizar") != NULL,
+             "e a mensagem diz o comando a rodar");
+    libera_body(&res);
+
+    /* A rota é nova; ela não pode responder 404 por omissão do roteador. */
+    T_ASSERT(res.status != 404, "e não é 404");
+}
+
 void test_api(void)
 {
     model m = fixture_model();
@@ -381,8 +486,10 @@ void test_api(void)
     teste_erro_escapado();
     teste_opcoes();
     teste_gzip_e_rota();
+    teste_valores();
 
     teste_sem_modelo();
+    teste_valores_sem_modelo();
 
     api_set_model(NULL);
     model_libera(&m);

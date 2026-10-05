@@ -323,6 +323,56 @@ button:focus-visible {
 #mapa { min-height: 14rem; }
 
 /* ---------------------------------------------------------------- */
+/* Mapa                                                              */
+/* ---------------------------------------------------------------- */
+
+/* A ausência do mapa é a MESMA cor de ausência dos gráficos, pelo mesmo
+ * token. Duas cores para "não sei" numa tela só seria o usuário ter que
+ * aprender duas legendas — e a primeira estaria errada na segunda. A classe
+ * existe porque atributo SVG não resolve `var()`: o <path> de ausência é
+ * escrito sem `fill` de propósito, e é esta regra que pinta. */
+.mapa-sem-dado { fill: var(--ausencia); }
+
+.mapa-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--superficie-alta);
+  border-radius: var(--raio);
+}
+
+.mapa-svg path {
+  /* O contorno é o que separa município de município quando a rampa tem dois
+   * tons vizinhos. `--borda` é mais escuro que qualquer tom da rampa, então
+   * o desenho não depende de a cor estar certa para continuar legível. */
+  stroke-linejoin: round;
+  cursor: pointer;
+  vector-effect: non-scaling-stroke;
+}
+
+.mapa-svg path:hover { stroke: var(--texto); }
+
+.mapa-rotulo {
+  fill: var(--texto-suave);
+  font-size: 11px;
+  font-family: var(--fonte-ui);
+  paint-order: stroke;
+  /* O contorno grosso na cor do fundo é o que torna o rótulo legível sobre
+   * um tom qualquer da rampa, sem clarear o mapa inteiro atrás dele. */
+  stroke: var(--superficie-alta);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+.mapa-legenda .mapa-rotulo { stroke: none; font-size: 10px; }
+
+.mapa-detalhe {
+  margin: var(--e3) 0 0;
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+}
+
+/* ---------------------------------------------------------------- */
 /* Gráficos                                                          */
 /* ---------------------------------------------------------------- */
 

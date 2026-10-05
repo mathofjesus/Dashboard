@@ -24,6 +24,7 @@ dashboard: $(OBJ)
 test: $(TEST_BIN) dashboard web/test-web
 	./$(TEST_BIN)
 	$(NODE) tests/test_web.mjs
+	$(NODE) tests/test_map.js
 	sh tests/test_web.sh
 
 # A suíte de rede fica no mesmo binário, mas só roda com --rede: assim `make test` não depende de internet e `make test-rede` baixa a API do IBGE.

@@ -21,6 +21,34 @@
 export const NIVEIS_GEO = ['estados', 'municipios'];
 
 /**
+ * O nome do nível no vocabulário do formulário → o da rota.
+ *
+ * O seletor de nível usa `municipio` e `uf` (é o que o servidor espera em
+ * `nivel=`), e a rota de geometria usa `municipios` e `estados` (é o que o
+ * geo.json e o endpoint chamam). Sem esta tradução, `geo('municipio')` jogava
+ * "nível de mapa desconhecido" e a exceção subia para dentro de `filtrar()`,
+ * que a tratava como erro da consulta — o cartão de KPIs virava a mensagem de
+ * erro do mapa. Não apareceu antes porque nada chamava `geo()`.
+ *
+ * `uf` entra como sinônimo de `estados`: é o código que o seletor carrega, e
+ * o aggregatesó-lo conhece.
+ */
+const NIVEL_GEO = {
+    municipio: 'municipios',
+    municipios: 'municipios',
+    uf: 'estados',
+    estado: 'estados',
+    estados: 'estados',
+};
+
+/** Traduz o nome do nível; devolve null quando não é um nível conhecido. */
+export function nivelGeo(nivel) {
+    if (!nivel) return null;
+    const chave = String(nivel).trim().toLowerCase();
+    return Object.prototype.hasOwnProperty.call(NIVEL_GEO, chave) ? NIVEL_GEO[chave] : null;
+}
+
+/**
  * Escapa um valor para query string.
  *
  * `encodeURIComponent` já escapa espaço como %20 (não como +), e isso importa:
@@ -136,6 +164,33 @@ export async function opcoes(fonte, ind, opts) {
 }
 
 /**
+ * GET /api/valores — o par `codarea → valor` do recorte inteiro.
+ *
+ * Existe separada de `consultar` porque o mapa precisa de TODAS as localidades
+ * e a consulta devolve a página: com `limite=100`, os outros 5470 municípios
+ * eram pintados com a cor de ausência, que significa "sem dado", quando têm
+ * dado e só não foram paginados.
+ *
+ * `nomes` pede o dicionário de codarea → nome, que o clique no mapa mostra.
+ * O nome não muda com o filtro, então o app o pede uma vez e o memoriza; os
+ * valores são buscados a cada consulta.
+ */
+export async function valores(params, opts = {}) {
+    const f = fetchDe(opts);
+    const todos = Object.assign({}, params);
+    if (opts.nomes) todos.nomes = '1';
+    const caminho = `/api/valores${montarQuery(todos)}`;
+    const res = await f(caminho, { headers: { Accept: 'application/json' } });
+    const corpo = await lerJson(res, caminho);
+    return {
+        total: corpo && typeof corpo.total === 'number' ? corpo.total : 0,
+        com_dado: corpo && typeof corpo.com_dado === 'number' ? corpo.com_dado : 0,
+        valores: (corpo && corpo.valores) || {},
+        nomes: (corpo && corpo.nomes) || null,
+    };
+}
+
+/**
  * GET /api/geo/{nivel}.
  *
  * A malha é o desenho do mapa, não dado: pode ser buscada uma vez e
@@ -144,15 +199,16 @@ export async function opcoes(fonte, ind, opts) {
  * 503, e um mapa ausente não pode derrubar os KPIs que já responderam.
  */
 export async function geo(nivel, opts) {
-    if (!NIVEIS_GEO.includes(nivel)) {
+    const alvo = nivelGeo(nivel);
+    if (!alvo) {
         throw new Error(`nível de mapa desconhecido: ${nivel}`);
     }
     const cache = opts && opts.cache;
-    const chave = `geo:${nivel}`;
+    const chave = `geo:${alvo}`;
     if (cache && cache.has(chave)) return cache.get(chave);
 
     const f = fetchDe(opts);
-    const caminho = `/api/geo/${nivel}`;
+    const caminho = `/api/geo/${alvo}`;
     try {
         const res = await f(caminho, { headers: { Accept: 'application/geo+json' } });
         const corpo = await lerJson(res, caminho);

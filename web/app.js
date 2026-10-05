@@ -16,7 +16,7 @@
  * mesma separação do ruling C-5 que vale para os gráficos.
  */
 
-import { consultar, opcoes, geo, nivelGeo, montarQuery as montarQueryApi } from './api.js';
+import { consultar, opcoes, geo, valores, nivelGeo, montarQuery as montarQueryApi } from './api.js';
 import { desenharMapa, CLASSE_SEM_DADO } from './map.js';
 import {
     barras as desenharBarrasNo,
@@ -161,6 +161,9 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
 
     const estado = estadoInicial();
     const cacheGeo = new Map();
+    /* Nomes de município por nível: imutáveis durante a sessão, então uma vez
+     * basta. Os valores, ao contrário, são buscados a cada consulta. */
+    const cacheNomes = new Map();
 
     /* Evita duas consultas simultâneas: o botão fica desabilitado, mas
      * `filtrar()` é público e pode ser chamado duas vezes. */
@@ -437,7 +440,7 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
      * IBGE põe em `properties`. Ele sai dos registros da consulta, e por isso
      * os dois caminhos são desenhados com o mesmo dicionário de nomes.
      */
-    function renderMapa(resposta, nivel) {
+    function renderMapa(resposta, nivel, dados) {
         const painel = doc.getElementById('mapa');
         if (!painel) return;
 
@@ -459,21 +462,27 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
             return painel;
         }
 
+        /* O par codarea → valor vem de /api/valores (o recorte inteiro), não
+         * de `resposta.registros` (a página). Esta é a diferença entre um mapa
+         * do Brasil e um retrato dos 100 maiores: a página tem 100 linhas e o
+         * mapa tem 5570 caminhos. O nome vem do mesmo lugar quando foi
+         * pedido — é o que o clique mostra. */
+        const pares = (dados && dados.valores) || {};
+        const nomes = Object.assign({}, (dados && dados.nomes) || {});
+
+        /* A página tem nome das linhas que trouxe, e ele é o mesmo nome: cobre
+         * o mapa mesmo quando /api/valores foi chamado sem `nomes`. */
         const registros = resposta && Array.isArray(resposta.registros) ? resposta.registros : [];
-        const valores = {};
-        const nomes = {};
         for (const r of registros) {
             const cod = r && r.cod !== undefined && r.cod !== null ? String(r.cod) : null;
-            if (!cod) continue;
-            valores[cod] = r.valor;
-            if (r.nome) nomes[cod] = r.nome;
+            if (cod && r.nome) nomes[cod] = r.nome;
         }
 
-        const desenhado = desenharMapa(painel, malha, valores, {
+        const desenhado = desenharMapa(painel, malha, pares, {
             doc,
             rotulos: nivel === 'uf',
             titulo: resposta ? `${textoOpcoes(total)} no resultado` : null,
-            aoClicar: (cod) => mostraDetalhe(painel, cod, nomes, valores, nivel),
+            aoClicar: (cod) => mostraDetalhe(painel, cod, nomes, pares, nivel),
         });
         painel.className = desenhado && desenhado.vazio ? 'estado-vazio' : '';
         return painel;
@@ -502,6 +511,33 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
             : `${nome}: sem dado publicado para este recorte.`;
         painel.appendChild(p);
         return p;
+    }
+
+    /**
+     * Os valores e os nomes que o coroplético precisa, do recorte inteiro.
+     *
+     * Os nomes são pedidos só na primeira vez e ficam em `cacheNomes`: eles
+     * não mudam com ano, nem com indicador, nem com o filtro de UF — são o
+     * dicionário de localidades do IBGE. Pedir os 5570 nomes a cada consulta
+     * custaria 140 KB por clique sem acrescentar nada.
+     *
+     * Os valores mudam a cada consulta: são o próprio dado.
+     */
+    async function buscaValoresMapa(f) {
+        const chave = `nomes:${nivelGeo(f.nivel)}`;
+        const jaTemNomes = cacheNomes.has(chave);
+
+        const params = {
+            indicador: f.indicador,
+            ano: f.ano,
+            nivel: f.nivel,
+        };
+        if (f.uf) params.uf = f.uf;
+
+        const dados = await valores(params, { fetch: fetchFn, nomes: !jaTemNomes });
+        if (dados.nomes) cacheNomes.set(chave, dados.nomes);
+        else if (jaTemNomes) dados.nomes = cacheNomes.get(chave);
+        return dados;
     }
 
     /**
@@ -670,7 +706,18 @@ export function criarApp({ doc, fetch: fetchFn, logger = null } = {}) {
                 if (!cacheGeo.has(`geo:${nivelGeo(consulta.nivel)}`)) {
                     await geo(consulta.nivel, { fetch: fetchFn, cache: cacheGeo });
                 }
-                renderMapa(resposta, consulta.nivel);
+                /* Os valores vêm DEPOIS da consulta e antes do desenho: é o
+                 * recorte inteiro que o mapa colore, e sem eles o mapa sairia
+                 * com 100 municípios coloridos e 5470 marcados como "sem dado".
+                 * Uma falha aqui não pode derrubar a consulta — os KPIs e a
+                 * tabela já responderam — então o mapa fica cinza. */
+                let dadosMapa = null;
+                try {
+                    dadosMapa = await buscaValoresMapa(consulta);
+                } catch (e) {
+                    dadosMapa = null;
+                }
+                renderMapa(resposta, consulta.nivel, dadosMapa);
                 return lerEstado(estado);
             } catch (e) {
                 estado.consultado = false;
