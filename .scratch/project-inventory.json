@@ -1,0 +1,3515 @@
+{
+  "root": "/home/mathofjesus/Projetos/Dashboard",
+  "generatedAt": "2026-10-20T00:09:01.046Z",
+  "totals": {
+    "files": 147,
+    "directories": 11
+  },
+  "extensions": [
+    {
+      "ext": ".md",
+      "count": 31,
+      "bytes": 298952
+    },
+    {
+      "ext": ".c",
+      "count": 28,
+      "bytes": 457019
+    },
+    {
+      "ext": "[none]",
+      "count": 23,
+      "bytes": 42445406
+    },
+    {
+      "ext": ".ttl",
+      "count": 16,
+      "bytes": 128
+    },
+    {
+      "ext": ".h",
+      "count": 14,
+      "bytes": 42302
+    },
+    {
+      "ext": ".o",
+      "count": 13,
+      "bytes": 160128
+    },
+    {
+      "ext": ".js",
+      "count": 6,
+      "bytes": 131092
+    },
+    {
+      "ext": ".diff",
+      "count": 5,
+      "bytes": 549289
+    },
+    {
+      "ext": ".mjs",
+      "count": 3,
+      "bytes": 115303
+    },
+    {
+      "ext": ".json",
+      "count": 2,
+      "bytes": 1566437
+    },
+    {
+      "ext": ".sh",
+      "count": 2,
+      "bytes": 17155
+    },
+    {
+      "ext": ".conf",
+      "count": 1,
+      "bytes": 2444
+    },
+    {
+      "ext": ".css",
+      "count": 1,
+      "bytes": 14736
+    },
+    {
+      "ext": ".html",
+      "count": 1,
+      "bytes": 3967
+    },
+    {
+      "ext": ".idx",
+      "count": 1,
+      "bytes": 3183044
+    }
+  ],
+  "topDirectories": [
+    {
+      "dir": "src",
+      "files": 40
+    },
+    {
+      "dir": "data",
+      "files": 35
+    },
+    {
+      "dir": ".superpowers",
+      "files": 33
+    },
+    {
+      "dir": "tests",
+      "files": 22
+    },
+    {
+      "dir": ".",
+      "files": 10
+    },
+    {
+      "dir": "web",
+      "files": 7
+    }
+  ],
+  "manifests": {
+    "manifestPaths": [],
+    "readmePreview": ""
+  },
+  "packages": [],
+  "likelyEntrypoints": [
+    "src/api.c",
+    "src/api.h",
+    "src/api.o",
+    "src/main.c",
+    "src/main.o",
+    "web/api.js",
+    "web/app.js",
+    "web/index.html"
+  ],
+  "symbols": [
+    {
+      "path": "tests/fake_dom.mjs",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "criaEl"
+        },
+        {
+          "kind": "function",
+          "name": "criaPainelKpis"
+        },
+        {
+          "kind": "function",
+          "name": "criaDoc"
+        },
+        {
+          "kind": "function",
+          "name": "preencheFiltros"
+        },
+        {
+          "kind": "function",
+          "name": "docDeTeste"
+        },
+        {
+          "kind": "interface",
+          "name": "recebe"
+        },
+        {
+          "kind": "const",
+          "name": "i"
+        },
+        {
+          "kind": "const",
+          "name": "fn"
+        },
+        {
+          "kind": "const",
+          "name": "out"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "visita"
+        },
+        {
+          "kind": "const",
+          "name": "lista"
+        },
+        {
+          "kind": "const",
+          "name": "painel"
+        },
+        {
+          "kind": "const",
+          "name": "rotulos"
+        },
+        {
+          "kind": "const",
+          "name": "cartao"
+        },
+        {
+          "kind": "const",
+          "name": "r"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "IDS"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        }
+      ]
+    },
+    {
+      "path": "tests/front_e2e.mjs",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "passo"
+        },
+        {
+          "kind": "function",
+          "name": "brutoGz"
+        },
+        {
+          "kind": "function",
+          "name": "fetchDoNavegador"
+        },
+        {
+          "kind": "const",
+          "name": "BASE"
+        },
+        {
+          "kind": "const",
+          "name": "u"
+        },
+        {
+          "kind": "const",
+          "name": "partes"
+        },
+        {
+          "kind": "const",
+          "name": "raw"
+        },
+        {
+          "kind": "const",
+          "name": "gz"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "app"
+        },
+        {
+          "kind": "const",
+          "name": "estado"
+        },
+        {
+          "kind": "const",
+          "name": "e"
+        },
+        {
+          "kind": "const",
+          "name": "valores"
+        },
+        {
+          "kind": "const",
+          "name": "ufs"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "valores"
+        },
+        {
+          "kind": "const",
+          "name": "e"
+        },
+        {
+          "kind": "const",
+          "name": "e"
+        },
+        {
+          "kind": "const",
+          "name": "texto"
+        },
+        {
+          "kind": "const",
+          "name": "q"
+        },
+        {
+          "kind": "const",
+          "name": "r"
+        },
+        {
+          "kind": "const",
+          "name": "res"
+        },
+        {
+          "kind": "const",
+          "name": "corpo"
+        },
+        {
+          "kind": "const",
+          "name": "doc3"
+        },
+        {
+          "kind": "const",
+          "name": "app3"
+        },
+        {
+          "kind": "const",
+          "name": "bruto"
+        },
+        {
+          "kind": "const",
+          "name": "r"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_map.js",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "teste"
+        },
+        {
+          "kind": "function",
+          "name": "geoDoisMunicipios"
+        },
+        {
+          "kind": "function",
+          "name": "tagsDe"
+        },
+        {
+          "kind": "function",
+          "name": "alvoDeTeste"
+        },
+        {
+          "kind": "const",
+          "name": "falhasDetalhadas"
+        },
+        {
+          "kind": "const",
+          "name": "VALORES_UM_E_DOIS"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "out"
+        },
+        {
+          "kind": "const",
+          "name": "visita"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "geo"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "fills"
+        },
+        {
+          "kind": "const",
+          "name": "paths"
+        },
+        {
+          "kind": "const",
+          "name": "fills"
+        },
+        {
+          "kind": "const",
+          "name": "valores"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "semDado"
+        },
+        {
+          "kind": "const",
+          "name": "comDado"
+        },
+        {
+          "kind": "const",
+          "name": "paths"
+        },
+        {
+          "kind": "const",
+          "name": "semDado"
+        },
+        {
+          "kind": "const",
+          "name": "bandas"
+        },
+        {
+          "kind": "const",
+          "name": "geo"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "bandas"
+        },
+        {
+          "kind": "const",
+          "name": "geo"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "paths"
+        },
+        {
+          "kind": "const",
+          "name": "geo"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "nums"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "geo"
+        },
+        {
+          "kind": "const",
+          "name": "caixa"
+        },
+        {
+          "kind": "const",
+          "name": "multi"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "d"
+        },
+        {
+          "kind": "const",
+          "name": "sub"
+        },
+        {
+          "kind": "const",
+          "name": "anel"
+        },
+        {
+          "kind": "const",
+          "name": "d"
+        },
+        {
+          "kind": "const",
+          "name": "d"
+        },
+        {
+          "kind": "const",
+          "name": "d"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "semDado"
+        },
+        {
+          "kind": "const",
+          "name": "svgs"
+        },
+        {
+          "kind": "const",
+          "name": "vb"
+        },
+        {
+          "kind": "const",
+          "name": "visita"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_web.mjs",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "teste"
+        },
+        {
+          "kind": "function",
+          "name": "testeAsync"
+        },
+        {
+          "kind": "function",
+          "name": "criaFetch"
+        },
+        {
+          "kind": "function",
+          "name": "appDeTeste"
+        },
+        {
+          "kind": "function",
+          "name": "nosDe"
+        },
+        {
+          "kind": "function",
+          "name": "caminhosDe"
+        },
+        {
+          "kind": "function",
+          "name": "caixa"
+        },
+        {
+          "kind": "function",
+          "name": "tagsDe"
+        },
+        {
+          "kind": "interface",
+          "name": "recebe"
+        },
+        {
+          "kind": "const",
+          "name": "falhasDetalhadas"
+        },
+        {
+          "kind": "const",
+          "name": "chamadas"
+        },
+        {
+          "kind": "const",
+          "name": "fn"
+        },
+        {
+          "kind": "const",
+          "name": "chave"
+        },
+        {
+          "kind": "const",
+          "name": "semBarra"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "app"
+        },
+        {
+          "kind": "const",
+          "name": "valores"
+        },
+        {
+          "kind": "const",
+          "name": "botao"
+        },
+        {
+          "kind": "const",
+          "name": "url"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "app"
+        },
+        {
+          "kind": "const",
+          "name": "orig"
+        },
+        {
+          "kind": "const",
+          "name": "url"
+        },
+        {
+          "kind": "const",
+          "name": "url"
+        },
+        {
+          "kind": "const",
+          "name": "q"
+        },
+        {
+          "kind": "const",
+          "name": "q"
+        },
+        {
+          "kind": "const",
+          "name": "q"
+        },
+        {
+          "kind": "const",
+          "name": "q"
+        },
+        {
+          "kind": "const",
+          "name": "p"
+        },
+        {
+          "kind": "const",
+          "name": "p"
+        },
+        {
+          "kind": "const",
+          "name": "q"
+        },
+        {
+          "kind": "const",
+          "name": "q"
+        },
+        {
+          "kind": "const",
+          "name": "urls"
+        },
+        {
+          "kind": "const",
+          "name": "url"
+        },
+        {
+          "kind": "const",
+          "name": "cartoes"
+        },
+        {
+          "kind": "const",
+          "name": "valores"
+        },
+        {
+          "kind": "const",
+          "name": "rotulos"
+        },
+        {
+          "kind": "const",
+          "name": "valores"
+        },
+        {
+          "kind": "const",
+          "name": "txt"
+        },
+        {
+          "kind": "const",
+          "name": "nomes"
+        },
+        {
+          "kind": "const",
+          "name": "consultas"
+        },
+        {
+          "kind": "const",
+          "name": "consultas"
+        },
+        {
+          "kind": "const",
+          "name": "antes"
+        },
+        {
+          "kind": "const",
+          "name": "depois"
+        },
+        {
+          "kind": "const",
+          "name": "vals"
+        },
+        {
+          "kind": "const",
+          "name": "pop"
+        },
+        {
+          "kind": "const",
+          "name": "ibge"
+        },
+        {
+          "kind": "const",
+          "name": "saude"
+        },
+        {
+          "kind": "const",
+          "name": "rotulos"
+        },
+        {
+          "kind": "const",
+          "name": "rotulos"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "ufs"
+        },
+        {
+          "kind": "const",
+          "name": "valores"
+        },
+        {
+          "kind": "const",
+          "name": "url"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "r"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "o"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "o"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "cache"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "a"
+        },
+        {
+          "kind": "const",
+          "name": "b"
+        },
+        {
+          "kind": "const",
+          "name": "cache"
+        },
+        {
+          "kind": "const",
+          "name": "fetch"
+        },
+        {
+          "kind": "const",
+          "name": "s"
+        },
+        {
+          "kind": "const",
+          "name": "s"
+        },
+        {
+          "kind": "const",
+          "name": "s"
+        },
+        {
+          "kind": "const",
+          "name": "e"
+        },
+        {
+          "kind": "const",
+          "name": "e"
+        },
+        {
+          "kind": "const",
+          "name": "SERIE_SP"
+        },
+        {
+          "kind": "const",
+          "name": "REGISTROS"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "visita"
+        },
+        {
+          "kind": "const",
+          "name": "out"
+        },
+        {
+          "kind": "const",
+          "name": "visita"
+        },
+        {
+          "kind": "const",
+          "name": "s"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "inteiro"
+        },
+        {
+          "kind": "const",
+          "name": "s"
+        },
+        {
+          "kind": "const",
+          "name": "s"
+        },
+        {
+          "kind": "const",
+          "name": "p"
+        },
+        {
+          "kind": "const",
+          "name": "p"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "fimSegundo"
+        },
+        {
+          "kind": "const",
+          "name": "inicioTerceiro"
+        },
+        {
+          "kind": "const",
+          "name": "vaoLongo"
+        },
+        {
+          "kind": "const",
+          "name": "vaoCurto"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "saoPaulo"
+        },
+        {
+          "kind": "const",
+          "name": "lacuna"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "nulos"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "fatias"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "f"
+        },
+        {
+          "kind": "const",
+          "name": "semKpi"
+        },
+        {
+          "kind": "const",
+          "name": "f"
+        },
+        {
+          "kind": "const",
+          "name": "soma"
+        },
+        {
+          "kind": "const",
+          "name": "segs"
+        },
+        {
+          "kind": "const",
+          "name": "px"
+        },
+        {
+          "kind": "const",
+          "name": "r"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "c"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "marcas"
+        },
+        {
+          "kind": "const",
+          "name": "texto"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "svgEl"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "a"
+        },
+        {
+          "kind": "const",
+          "name": "b"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "lacunas"
+        },
+        {
+          "kind": "const",
+          "name": "nulos"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "d"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "d"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "cartao"
+        },
+        {
+          "kind": "const",
+          "name": "painel"
+        },
+        {
+          "kind": "const",
+          "name": "painel"
+        },
+        {
+          "kind": "const",
+          "name": "linhas"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "marcas"
+        },
+        {
+          "kind": "const",
+          "name": "painel"
+        },
+        {
+          "kind": "const",
+          "name": "linhas"
+        },
+        {
+          "kind": "const",
+          "name": "e"
+        },
+        {
+          "kind": "const",
+          "name": "texto"
+        },
+        {
+          "kind": "const",
+          "name": "texto"
+        },
+        {
+          "kind": "const",
+          "name": "a"
+        },
+        {
+          "kind": "const",
+          "name": "b"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "a"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "resposta"
+        },
+        {
+          "kind": "const",
+          "name": "app"
+        },
+        {
+          "kind": "const",
+          "name": "texto"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "resposta"
+        },
+        {
+          "kind": "const",
+          "name": "app"
+        },
+        {
+          "kind": "const",
+          "name": "rotulos"
+        },
+        {
+          "kind": "const",
+          "name": "MALHA_DOIS"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "out"
+        },
+        {
+          "kind": "const",
+          "name": "visita"
+        },
+        {
+          "kind": "const",
+          "name": "paths"
+        },
+        {
+          "kind": "const",
+          "name": "resposta"
+        },
+        {
+          "kind": "const",
+          "name": "paths"
+        },
+        {
+          "kind": "const",
+          "name": "comDado"
+        },
+        {
+          "kind": "const",
+          "name": "semDado"
+        },
+        {
+          "kind": "const",
+          "name": "resposta"
+        },
+        {
+          "kind": "const",
+          "name": "sp"
+        },
+        {
+          "kind": "const",
+          "name": "detalhe"
+        },
+        {
+          "kind": "const",
+          "name": "resposta"
+        },
+        {
+          "kind": "const",
+          "name": "paths"
+        },
+        {
+          "kind": "const",
+          "name": "resposta"
+        },
+        {
+          "kind": "const",
+          "name": "geos"
+        },
+        {
+          "kind": "const",
+          "name": "resposta"
+        },
+        {
+          "kind": "const",
+          "name": "pv"
+        },
+        {
+          "kind": "const",
+          "name": "detalhe"
+        },
+        {
+          "kind": "const",
+          "name": "PX_POR_CHAR_EIXO"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "rotulos"
+        },
+        {
+          "kind": "const",
+          "name": "maisLargo"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "larguraRotulo"
+        },
+        {
+          "kind": "const",
+          "name": "xEsquerdo"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "rotulos"
+        },
+        {
+          "kind": "const",
+          "name": "maisLargo"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "fatias"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "fatias"
+        },
+        {
+          "kind": "const",
+          "name": "marcas"
+        },
+        {
+          "kind": "const",
+          "name": "visita"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "select"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "DOIS_COM_NOMES"
+        },
+        {
+          "kind": "const",
+          "name": "pedidos"
+        },
+        {
+          "kind": "const",
+          "name": "paginaDeUm"
+        },
+        {
+          "kind": "const",
+          "name": "sp"
+        },
+        {
+          "kind": "const",
+          "name": "pedidos"
+        },
+        {
+          "kind": "const",
+          "name": "sp"
+        },
+        {
+          "kind": "const",
+          "name": "detalhe"
+        },
+        {
+          "kind": "const",
+          "name": "valores"
+        }
+      ]
+    },
+    {
+      "path": "web/api.js",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "nivelGeo"
+        },
+        {
+          "kind": "function",
+          "name": "esc"
+        },
+        {
+          "kind": "function",
+          "name": "montarQuery"
+        },
+        {
+          "kind": "function",
+          "name": "rotaConsulta"
+        },
+        {
+          "kind": "function",
+          "name": "fetchDe"
+        },
+        {
+          "kind": "function",
+          "name": "lerJson"
+        },
+        {
+          "kind": "function",
+          "name": "consultar"
+        },
+        {
+          "kind": "function",
+          "name": "opcoes"
+        },
+        {
+          "kind": "function",
+          "name": "valores"
+        },
+        {
+          "kind": "function",
+          "name": "geo"
+        },
+        {
+          "kind": "const",
+          "name": "NIVEIS_GEO"
+        },
+        {
+          "kind": "const",
+          "name": "NIVEL_GEO"
+        },
+        {
+          "kind": "const",
+          "name": "chave"
+        },
+        {
+          "kind": "const",
+          "name": "partes"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "info"
+        },
+        {
+          "kind": "const",
+          "name": "msg"
+        },
+        {
+          "kind": "const",
+          "name": "f"
+        },
+        {
+          "kind": "const",
+          "name": "caminho"
+        },
+        {
+          "kind": "const",
+          "name": "res"
+        },
+        {
+          "kind": "const",
+          "name": "f"
+        },
+        {
+          "kind": "const",
+          "name": "caminho"
+        },
+        {
+          "kind": "const",
+          "name": "res"
+        },
+        {
+          "kind": "const",
+          "name": "corpo"
+        },
+        {
+          "kind": "const",
+          "name": "brutos"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "n"
+        },
+        {
+          "kind": "const",
+          "name": "ufs"
+        },
+        {
+          "kind": "const",
+          "name": "f"
+        },
+        {
+          "kind": "const",
+          "name": "todos"
+        },
+        {
+          "kind": "const",
+          "name": "caminho"
+        },
+        {
+          "kind": "const",
+          "name": "res"
+        },
+        {
+          "kind": "const",
+          "name": "corpo"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "cache"
+        },
+        {
+          "kind": "const",
+          "name": "chave"
+        },
+        {
+          "kind": "const",
+          "name": "f"
+        },
+        {
+          "kind": "const",
+          "name": "caminho"
+        },
+        {
+          "kind": "const",
+          "name": "res"
+        },
+        {
+          "kind": "const",
+          "name": "corpo"
+        }
+      ]
+    },
+    {
+      "path": "web/app.js",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "rotuloIndicador"
+        },
+        {
+          "kind": "function",
+          "name": "estadoInicial"
+        },
+        {
+          "kind": "function",
+          "name": "estadoVazio"
+        },
+        {
+          "kind": "function",
+          "name": "anoValido"
+        },
+        {
+          "kind": "function",
+          "name": "lerEstado"
+        },
+        {
+          "kind": "function",
+          "name": "criarApp"
+        },
+        {
+          "kind": "function",
+          "name": "avisar"
+        },
+        {
+          "kind": "function",
+          "name": "formulario"
+        },
+        {
+          "kind": "function",
+          "name": "paramsDeConsulta"
+        },
+        {
+          "kind": "function",
+          "name": "escreve"
+        },
+        {
+          "kind": "function",
+          "name": "renderVazio"
+        },
+        {
+          "kind": "function",
+          "name": "renderKpis"
+        },
+        {
+          "kind": "function",
+          "name": "renderTabela"
+        },
+        {
+          "kind": "function",
+          "name": "cartao"
+        },
+        {
+          "kind": "function",
+          "name": "renderGraficos"
+        },
+        {
+          "kind": "function",
+          "name": "recorteDe"
+        },
+        {
+          "kind": "function",
+          "name": "renderMapa"
+        },
+        {
+          "kind": "function",
+          "name": "mostraDetalhe"
+        },
+        {
+          "kind": "function",
+          "name": "buscaValoresMapa"
+        },
+        {
+          "kind": "function",
+          "name": "geoAtual"
+        },
+        {
+          "kind": "function",
+          "name": "renderErro"
+        },
+        {
+          "kind": "function",
+          "name": "renderSpinner"
+        },
+        {
+          "kind": "function",
+          "name": "garantirOpcoes"
+        },
+        {
+          "kind": "function",
+          "name": "definirFonte"
+        },
+        {
+          "kind": "function",
+          "name": "filtrar"
+        },
+        {
+          "kind": "function",
+          "name": "estado_"
+        },
+        {
+          "kind": "function",
+          "name": "carregarMapa"
+        },
+        {
+          "kind": "const",
+          "name": "achado"
+        },
+        {
+          "kind": "const",
+          "name": "estado"
+        },
+        {
+          "kind": "const",
+          "name": "cacheGeo"
+        },
+        {
+          "kind": "const",
+          "name": "cacheNomes"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "vazio"
+        },
+        {
+          "kind": "const",
+          "name": "kpis"
+        },
+        {
+          "kind": "const",
+          "name": "valor"
+        },
+        {
+          "kind": "const",
+          "name": "painel"
+        },
+        {
+          "kind": "const",
+          "name": "src"
+        },
+        {
+          "kind": "const",
+          "name": "campos"
+        },
+        {
+          "kind": "const",
+          "name": "cartoes"
+        },
+        {
+          "kind": "const",
+          "name": "existente"
+        },
+        {
+          "kind": "const",
+          "name": "cartao"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "aviso"
+        },
+        {
+          "kind": "const",
+          "name": "tabela"
+        },
+        {
+          "kind": "const",
+          "name": "cab"
+        },
+        {
+          "kind": "const",
+          "name": "linhaCab"
+        },
+        {
+          "kind": "const",
+          "name": "th"
+        },
+        {
+          "kind": "const",
+          "name": "corpo"
+        },
+        {
+          "kind": "const",
+          "name": "tr"
+        },
+        {
+          "kind": "const",
+          "name": "nome"
+        },
+        {
+          "kind": "const",
+          "name": "cod"
+        },
+        {
+          "kind": "const",
+          "name": "valor"
+        },
+        {
+          "kind": "const",
+          "name": "artigo"
+        },
+        {
+          "kind": "const",
+          "name": "topo"
+        },
+        {
+          "kind": "const",
+          "name": "h"
+        },
+        {
+          "kind": "const",
+          "name": "p"
+        },
+        {
+          "kind": "const",
+          "name": "corpo"
+        },
+        {
+          "kind": "const",
+          "name": "painel"
+        },
+        {
+          "kind": "const",
+          "name": "rotulo"
+        },
+        {
+          "kind": "const",
+          "name": "recorte"
+        },
+        {
+          "kind": "const",
+          "name": "total"
+        },
+        {
+          "kind": "const",
+          "name": "registros"
+        },
+        {
+          "kind": "const",
+          "name": "pontos"
+        },
+        {
+          "kind": "const",
+          "name": "kpis"
+        },
+        {
+          "kind": "const",
+          "name": "cartaoLinha"
+        },
+        {
+          "kind": "const",
+          "name": "quantos"
+        },
+        {
+          "kind": "const",
+          "name": "unidade"
+        },
+        {
+          "kind": "const",
+          "name": "cobertura"
+        },
+        {
+          "kind": "const",
+          "name": "cartaoBarras"
+        },
+        {
+          "kind": "const",
+          "name": "unidadeAnel"
+        },
+        {
+          "kind": "const",
+          "name": "fatias"
+        },
+        {
+          "kind": "const",
+          "name": "cartaoAnel"
+        },
+        {
+          "kind": "const",
+          "name": "partes"
+        },
+        {
+          "kind": "const",
+          "name": "painel"
+        },
+        {
+          "kind": "const",
+          "name": "total"
+        },
+        {
+          "kind": "const",
+          "name": "malha"
+        },
+        {
+          "kind": "const",
+          "name": "pares"
+        },
+        {
+          "kind": "const",
+          "name": "nomes"
+        },
+        {
+          "kind": "const",
+          "name": "registros"
+        },
+        {
+          "kind": "const",
+          "name": "cod"
+        },
+        {
+          "kind": "const",
+          "name": "desenhado"
+        },
+        {
+          "kind": "const",
+          "name": "unidade"
+        },
+        {
+          "kind": "const",
+          "name": "nome"
+        },
+        {
+          "kind": "const",
+          "name": "bruto"
+        },
+        {
+          "kind": "const",
+          "name": "temValor"
+        },
+        {
+          "kind": "const",
+          "name": "anterior"
+        },
+        {
+          "kind": "const",
+          "name": "p"
+        },
+        {
+          "kind": "const",
+          "name": "chave"
+        },
+        {
+          "kind": "const",
+          "name": "jaTemNomes"
+        },
+        {
+          "kind": "const",
+          "name": "params"
+        },
+        {
+          "kind": "const",
+          "name": "dados"
+        },
+        {
+          "kind": "const",
+          "name": "chave"
+        },
+        {
+          "kind": "const",
+          "name": "botao"
+        },
+        {
+          "kind": "const",
+          "name": "rotulo"
+        },
+        {
+          "kind": "const",
+          "name": "chave"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "valida"
+        },
+        {
+          "kind": "const",
+          "name": "selFonte"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "digitado"
+        },
+        {
+          "kind": "const",
+          "name": "ano"
+        },
+        {
+          "kind": "const",
+          "name": "uf"
+        },
+        {
+          "kind": "const",
+          "name": "consulta"
+        },
+        {
+          "kind": "const",
+          "name": "resposta"
+        },
+        {
+          "kind": "const",
+          "name": "botao"
+        },
+        {
+          "kind": "const",
+          "name": "selFonte"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "malha"
+        },
+        {
+          "kind": "const",
+          "name": "app"
+        }
+      ]
+    },
+    {
+      "path": "web/charts.js",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "valorPresente"
+        },
+        {
+          "kind": "function",
+          "name": "segmentosLinha"
+        },
+        {
+          "kind": "function",
+          "name": "paresDaSerie"
+        },
+        {
+          "kind": "function",
+          "name": "escalaLinear"
+        },
+        {
+          "kind": "function",
+          "name": "dominioValores"
+        },
+        {
+          "kind": "function",
+          "name": "fatiasDonut"
+        },
+        {
+          "kind": "function",
+          "name": "publicacaoDoAno"
+        },
+        {
+          "kind": "function",
+          "name": "rotulosDoEixoX"
+        },
+        {
+          "kind": "function",
+          "name": "lacunasDeLinha"
+        },
+        {
+          "kind": "function",
+          "name": "anosEntre"
+        },
+        {
+          "kind": "function",
+          "name": "coresCategoricas"
+        },
+        {
+          "kind": "function",
+          "name": "misturaRgb"
+        },
+        {
+          "kind": "function",
+          "name": "corSequencial"
+        },
+        {
+          "kind": "function",
+          "name": "encurtaTexto"
+        },
+        {
+          "kind": "function",
+          "name": "abreviaNumero"
+        },
+        {
+          "kind": "function",
+          "name": "margemDoEixo"
+        },
+        {
+          "kind": "function",
+          "name": "geometriaLinha"
+        },
+        {
+          "kind": "function",
+          "name": "geometriaBarras"
+        },
+        {
+          "kind": "function",
+          "name": "quatroTicks"
+        },
+        {
+          "kind": "function",
+          "name": "geometriaDonut"
+        },
+        {
+          "kind": "function",
+          "name": "arco"
+        },
+        {
+          "kind": "function",
+          "name": "elemento"
+        },
+        {
+          "kind": "function",
+          "name": "svg"
+        },
+        {
+          "kind": "function",
+          "name": "rotuloSvg"
+        },
+        {
+          "kind": "function",
+          "name": "limpa"
+        },
+        {
+          "kind": "function",
+          "name": "aviso"
+        },
+        {
+          "kind": "function",
+          "name": "moldura"
+        },
+        {
+          "kind": "function",
+          "name": "desenharLinha"
+        },
+        {
+          "kind": "function",
+          "name": "desenharBarras"
+        },
+        {
+          "kind": "function",
+          "name": "desenharDonut"
+        },
+        {
+          "kind": "function",
+          "name": "legenda"
+        },
+        {
+          "kind": "function",
+          "name": "percentual"
+        },
+        {
+          "kind": "function",
+          "name": "desenharKpi"
+        },
+        {
+          "kind": "function",
+          "name": "docDe"
+        },
+        {
+          "kind": "function",
+          "name": "linha"
+        },
+        {
+          "kind": "function",
+          "name": "barras"
+        },
+        {
+          "kind": "function",
+          "name": "donut"
+        },
+        {
+          "kind": "function",
+          "name": "kpi"
+        },
+        {
+          "kind": "const",
+          "name": "COR_AUSENCIA"
+        },
+        {
+          "kind": "const",
+          "name": "COR_LACUNA"
+        },
+        {
+          "kind": "const",
+          "name": "PALETA"
+        },
+        {
+          "kind": "const",
+          "name": "n"
+        },
+        {
+          "kind": "const",
+          "name": "segmentos"
+        },
+        {
+          "kind": "const",
+          "name": "fecha"
+        },
+        {
+          "kind": "const",
+          "name": "ano"
+        },
+        {
+          "kind": "const",
+          "name": "valor"
+        },
+        {
+          "kind": "const",
+          "name": "semValor"
+        },
+        {
+          "kind": "const",
+          "name": "descontinuo"
+        },
+        {
+          "kind": "const",
+          "name": "serie"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "saida"
+        },
+        {
+          "kind": "const",
+          "name": "n"
+        },
+        {
+          "kind": "const",
+          "name": "ano"
+        },
+        {
+          "kind": "const",
+          "name": "ini"
+        },
+        {
+          "kind": "const",
+          "name": "fim"
+        },
+        {
+          "kind": "const",
+          "name": "base"
+        },
+        {
+          "kind": "const",
+          "name": "topo"
+        },
+        {
+          "kind": "const",
+          "name": "meio"
+        },
+        {
+          "kind": "const",
+          "name": "n"
+        },
+        {
+          "kind": "const",
+          "name": "t"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "valorDe"
+        },
+        {
+          "kind": "const",
+          "name": "base"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "out"
+        },
+        {
+          "kind": "const",
+          "name": "cru"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "fatia"
+        },
+        {
+          "kind": "const",
+          "name": "t"
+        },
+        {
+          "kind": "const",
+          "name": "c"
+        },
+        {
+          "kind": "const",
+          "name": "maximo"
+        },
+        {
+          "kind": "const",
+          "name": "espacoMinimo"
+        },
+        {
+          "kind": "const",
+          "name": "px"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "unicos"
+        },
+        {
+          "kind": "const",
+          "name": "escolhidos"
+        },
+        {
+          "kind": "const",
+          "name": "x"
+        },
+        {
+          "kind": "const",
+          "name": "lacunas"
+        },
+        {
+          "kind": "const",
+          "name": "anterior"
+        },
+        {
+          "kind": "const",
+          "name": "seguinte"
+        },
+        {
+          "kind": "const",
+          "name": "de"
+        },
+        {
+          "kind": "const",
+          "name": "ate"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "total"
+        },
+        {
+          "kind": "const",
+          "name": "saida"
+        },
+        {
+          "kind": "const",
+          "name": "k"
+        },
+        {
+          "kind": "const",
+          "name": "canais"
+        },
+        {
+          "kind": "const",
+          "name": "hex"
+        },
+        {
+          "kind": "const",
+          "name": "saida"
+        },
+        {
+          "kind": "const",
+          "name": "RAMPA_A"
+        },
+        {
+          "kind": "const",
+          "name": "RAMPA_B"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "s"
+        },
+        {
+          "kind": "const",
+          "name": "n"
+        },
+        {
+          "kind": "const",
+          "name": "a"
+        },
+        {
+          "kind": "const",
+          "name": "fmt"
+        },
+        {
+          "kind": "const",
+          "name": "LARGURA_PADRAO"
+        },
+        {
+          "kind": "const",
+          "name": "ALTURA_LINHA"
+        },
+        {
+          "kind": "const",
+          "name": "ALTURA_BARRAS"
+        },
+        {
+          "kind": "const",
+          "name": "TAMANHO_DONUT"
+        },
+        {
+          "kind": "const",
+          "name": "MARGEM"
+        },
+        {
+          "kind": "const",
+          "name": "ESPESSURA_DONUT"
+        },
+        {
+          "kind": "const",
+          "name": "PX_POR_CHAR_EIXO"
+        },
+        {
+          "kind": "const",
+          "name": "n"
+        },
+        {
+          "kind": "const",
+          "name": "largura"
+        },
+        {
+          "kind": "const",
+          "name": "altura"
+        },
+        {
+          "kind": "const",
+          "name": "dom"
+        },
+        {
+          "kind": "const",
+          "name": "ticks"
+        },
+        {
+          "kind": "const",
+          "name": "margem"
+        },
+        {
+          "kind": "const",
+          "name": "base"
+        },
+        {
+          "kind": "const",
+          "name": "segmentos"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "anoMin"
+        },
+        {
+          "kind": "const",
+          "name": "anoMax"
+        },
+        {
+          "kind": "const",
+          "name": "px"
+        },
+        {
+          "kind": "const",
+          "name": "py"
+        },
+        {
+          "kind": "const",
+          "name": "largura"
+        },
+        {
+          "kind": "const",
+          "name": "altura"
+        },
+        {
+          "kind": "const",
+          "name": "maximo"
+        },
+        {
+          "kind": "const",
+          "name": "normalizados"
+        },
+        {
+          "kind": "const",
+          "name": "va"
+        },
+        {
+          "kind": "const",
+          "name": "vb"
+        },
+        {
+          "kind": "const",
+          "name": "ticks"
+        },
+        {
+          "kind": "const",
+          "name": "margem"
+        },
+        {
+          "kind": "const",
+          "name": "base"
+        },
+        {
+          "kind": "const",
+          "name": "py"
+        },
+        {
+          "kind": "const",
+          "name": "vao"
+        },
+        {
+          "kind": "const",
+          "name": "larguraBarra"
+        },
+        {
+          "kind": "const",
+          "name": "alturaMaxRotulo"
+        },
+        {
+          "kind": "const",
+          "name": "cabemRotulos"
+        },
+        {
+          "kind": "const",
+          "name": "cabemValores"
+        },
+        {
+          "kind": "const",
+          "name": "barras"
+        },
+        {
+          "kind": "const",
+          "name": "ausente"
+        },
+        {
+          "kind": "const",
+          "name": "x"
+        },
+        {
+          "kind": "const",
+          "name": "baseComum"
+        },
+        {
+          "kind": "const",
+          "name": "h"
+        },
+        {
+          "kind": "const",
+          "name": "a"
+        },
+        {
+          "kind": "const",
+          "name": "b"
+        },
+        {
+          "kind": "const",
+          "name": "tamanho"
+        },
+        {
+          "kind": "const",
+          "name": "espessura"
+        },
+        {
+          "kind": "const",
+          "name": "cx"
+        },
+        {
+          "kind": "const",
+          "name": "cy"
+        },
+        {
+          "kind": "const",
+          "name": "raio"
+        },
+        {
+          "kind": "const",
+          "name": "arcos"
+        },
+        {
+          "kind": "const",
+          "name": "tamanhoFatia"
+        },
+        {
+          "kind": "const",
+          "name": "cores"
+        },
+        {
+          "kind": "const",
+          "name": "a0"
+        },
+        {
+          "kind": "const",
+          "name": "a1"
+        },
+        {
+          "kind": "const",
+          "name": "x0"
+        },
+        {
+          "kind": "const",
+          "name": "y0"
+        },
+        {
+          "kind": "const",
+          "name": "x1"
+        },
+        {
+          "kind": "const",
+          "name": "y1"
+        },
+        {
+          "kind": "const",
+          "name": "grande"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "svgEl"
+        },
+        {
+          "kind": "const",
+          "name": "cor"
+        },
+        {
+          "kind": "const",
+          "name": "y"
+        },
+        {
+          "kind": "const",
+          "name": "traco"
+        },
+        {
+          "kind": "const",
+          "name": "d"
+        },
+        {
+          "kind": "const",
+          "name": "caminho"
+        },
+        {
+          "kind": "const",
+          "name": "p"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "svgEl"
+        },
+        {
+          "kind": "const",
+          "name": "cores"
+        },
+        {
+          "kind": "const",
+          "name": "semDado"
+        },
+        {
+          "kind": "const",
+          "name": "y"
+        },
+        {
+          "kind": "const",
+          "name": "traco"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "total"
+        },
+        {
+          "kind": "const",
+          "name": "svgEl"
+        },
+        {
+          "kind": "const",
+          "name": "cor"
+        },
+        {
+          "kind": "const",
+          "name": "ul"
+        },
+        {
+          "kind": "const",
+          "name": "li"
+        },
+        {
+          "kind": "const",
+          "name": "marca"
+        },
+        {
+          "kind": "const",
+          "name": "p"
+        },
+        {
+          "kind": "const",
+          "name": "d"
+        },
+        {
+          "kind": "const",
+          "name": "cartao"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        }
+      ]
+    },
+    {
+      "path": "web/filters.js",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "asValidas"
+        },
+        {
+          "kind": "function",
+          "name": "inteiroValido"
+        },
+        {
+          "kind": "function",
+          "name": "indicadoresDaFonte"
+        },
+        {
+          "kind": "function",
+          "name": "indicadorPadrao"
+        },
+        {
+          "kind": "function",
+          "name": "paramsDaConsulta"
+        },
+        {
+          "kind": "function",
+          "name": "textoOpcoes"
+        },
+        {
+          "kind": "function",
+          "name": "plural"
+        },
+        {
+          "kind": "function",
+          "name": "opcao"
+        },
+        {
+          "kind": "function",
+          "name": "preencher"
+        },
+        {
+          "kind": "function",
+          "name": "preencherFontes"
+        },
+        {
+          "kind": "function",
+          "name": "preencherIndicadores"
+        },
+        {
+          "kind": "function",
+          "name": "preencherNiveis"
+        },
+        {
+          "kind": "function",
+          "name": "preencherOrdenacoes"
+        },
+        {
+          "kind": "function",
+          "name": "preencherLimites"
+        },
+        {
+          "kind": "function",
+          "name": "preencherOpcoes"
+        },
+        {
+          "kind": "function",
+          "name": "lerFormulario"
+        },
+        {
+          "kind": "const",
+          "name": "OPCOES_FONTE"
+        },
+        {
+          "kind": "const",
+          "name": "OPCOES_INDICADOR"
+        },
+        {
+          "kind": "const",
+          "name": "OPCOES_NIVEL"
+        },
+        {
+          "kind": "const",
+          "name": "ORDENS"
+        },
+        {
+          "kind": "const",
+          "name": "OPCOES_ORDENAR"
+        },
+        {
+          "kind": "const",
+          "name": "OPCOES_LIMITE"
+        },
+        {
+          "kind": "const",
+          "name": "ROTULO_TODAS_UFS"
+        },
+        {
+          "kind": "const",
+          "name": "bruto"
+        },
+        {
+          "kind": "const",
+          "name": "n"
+        },
+        {
+          "kind": "const",
+          "name": "bruto"
+        },
+        {
+          "kind": "const",
+          "name": "n"
+        },
+        {
+          "kind": "const",
+          "name": "lista"
+        },
+        {
+          "kind": "const",
+          "name": "e"
+        },
+        {
+          "kind": "const",
+          "name": "params"
+        },
+        {
+          "kind": "const",
+          "name": "ano"
+        },
+        {
+          "kind": "const",
+          "name": "limite"
+        },
+        {
+          "kind": "const",
+          "name": "n"
+        },
+        {
+          "kind": "const",
+          "name": "num"
+        },
+        {
+          "kind": "const",
+          "name": "um"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        },
+        {
+          "kind": "const",
+          "name": "f"
+        },
+        {
+          "kind": "const",
+          "name": "lista"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "itens"
+        },
+        {
+          "kind": "const",
+          "name": "alvo"
+        },
+        {
+          "kind": "const",
+          "name": "ufs"
+        },
+        {
+          "kind": "const",
+          "name": "anos"
+        },
+        {
+          "kind": "const",
+          "name": "selUf"
+        },
+        {
+          "kind": "const",
+          "name": "itensUf"
+        },
+        {
+          "kind": "const",
+          "name": "alvoUf"
+        },
+        {
+          "kind": "const",
+          "name": "selAno"
+        },
+        {
+          "kind": "const",
+          "name": "itensAno"
+        },
+        {
+          "kind": "const",
+          "name": "alvoAno"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "el"
+        }
+      ]
+    },
+    {
+      "path": "web/map.js",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "valorDoCodigo"
+        },
+        {
+          "kind": "function",
+          "name": "bandasDaEscala"
+        },
+        {
+          "kind": "function",
+          "name": "corDoCodigo"
+        },
+        {
+          "kind": "function",
+          "name": "caixaDaGeo"
+        },
+        {
+          "kind": "function",
+          "name": "projectaPonto"
+        },
+        {
+          "kind": "function",
+          "name": "caminhoDoAnel"
+        },
+        {
+          "kind": "function",
+          "name": "featuresDe"
+        },
+        {
+          "kind": "function",
+          "name": "aneisDe"
+        },
+        {
+          "kind": "function",
+          "name": "geometriaMapa"
+        },
+        {
+          "kind": "function",
+          "name": "montaLegenda"
+        },
+        {
+          "kind": "function",
+          "name": "rotuloFaixa"
+        },
+        {
+          "kind": "function",
+          "name": "desenharMapa"
+        },
+        {
+          "kind": "function",
+          "name": "construirLegenda"
+        },
+        {
+          "kind": "function",
+          "name": "rotuloDeEstado"
+        },
+        {
+          "kind": "const",
+          "name": "CLASSE_SEM_DADO"
+        },
+        {
+          "kind": "const",
+          "name": "CLASSE_ROTULO"
+        },
+        {
+          "kind": "const",
+          "name": "LARGURA"
+        },
+        {
+          "kind": "const",
+          "name": "ALTURA"
+        },
+        {
+          "kind": "const",
+          "name": "RAMPA"
+        },
+        {
+          "kind": "const",
+          "name": "N_BANDAS"
+        },
+        {
+          "kind": "const",
+          "name": "chave"
+        },
+        {
+          "kind": "const",
+          "name": "nums"
+        },
+        {
+          "kind": "const",
+          "name": "total"
+        },
+        {
+          "kind": "const",
+          "name": "largura"
+        },
+        {
+          "kind": "const",
+          "name": "faixas"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "lista"
+        },
+        {
+          "kind": "const",
+          "name": "marcas"
+        },
+        {
+          "kind": "const",
+          "name": "px"
+        },
+        {
+          "kind": "const",
+          "name": "py"
+        },
+        {
+          "kind": "const",
+          "name": "u"
+        },
+        {
+          "kind": "const",
+          "name": "v"
+        },
+        {
+          "kind": "const",
+          "name": "partes"
+        },
+        {
+          "kind": "const",
+          "name": "X"
+        },
+        {
+          "kind": "const",
+          "name": "Y"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "out"
+        },
+        {
+          "kind": "const",
+          "name": "caixa"
+        },
+        {
+          "kind": "const",
+          "name": "valoresPresentes"
+        },
+        {
+          "kind": "const",
+          "name": "faixas"
+        },
+        {
+          "kind": "const",
+          "name": "caminhos"
+        },
+        {
+          "kind": "const",
+          "name": "props"
+        },
+        {
+          "kind": "const",
+          "name": "codarea"
+        },
+        {
+          "kind": "const",
+          "name": "tinta"
+        },
+        {
+          "kind": "const",
+          "name": "d"
+        },
+        {
+          "kind": "const",
+          "name": "itens"
+        },
+        {
+          "kind": "const",
+          "name": "doc"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "NS"
+        },
+        {
+          "kind": "const",
+          "name": "svg"
+        },
+        {
+          "kind": "const",
+          "name": "rotulos"
+        },
+        {
+          "kind": "const",
+          "name": "p"
+        },
+        {
+          "kind": "const",
+          "name": "t"
+        },
+        {
+          "kind": "const",
+          "name": "NS"
+        },
+        {
+          "kind": "const",
+          "name": "g"
+        },
+        {
+          "kind": "const",
+          "name": "y"
+        },
+        {
+          "kind": "const",
+          "name": "r"
+        },
+        {
+          "kind": "const",
+          "name": "t"
+        }
+      ]
+    }
+  ],
+  "largestFiles": [
+    {
+      "path": "data/cache/ibge_malhas_municipios",
+      "name": "ibge_malhas_municipios",
+      "ext": "[none]",
+      "size": 5781544
+    },
+    {
+      "path": "data/cache/ibge_sidra_mun_2021_2025",
+      "name": "ibge_sidra_mun_2021_2025",
+      "ext": "[none]",
+      "size": 4525264
+    },
+    {
+      "path": "data/cache/ibge_sidra_mun_2018_2020",
+      "name": "ibge_sidra_mun_2018_2020",
+      "ext": "[none]",
+      "size": 4525259
+    },
+    {
+      "path": "data/cache/ibge_sidra_mun_2015_2017",
+      "name": "ibge_sidra_mun_2015_2017",
+      "ext": "[none]",
+      "size": 4525230
+    },
+    {
+      "path": "data/cache/ibge_sidra_mun_2012_2014",
+      "name": "ibge_sidra_mun_2012_2014",
+      "ext": "[none]",
+      "size": 4525099
+    },
+    {
+      "path": "data/cache/ibge_sidra_mun_2008_2011",
+      "name": "ibge_sidra_mun_2008_2011",
+      "ext": "[none]",
+      "size": 4524830
+    },
+    {
+      "path": "data/cache/ibge_sidra_mun_2004_2006",
+      "name": "ibge_sidra_mun_2004_2006",
+      "ext": "[none]",
+      "size": 4524371
+    },
+    {
+      "path": "data/cache/ibge_sidra_mun_2001_2003",
+      "name": "ibge_sidra_mun_2001_2003",
+      "ext": "[none]",
+      "size": 4524205
+    },
+    {
+      "path": "data/processed/modelo.idx",
+      "name": "modelo.idx",
+      "ext": ".idx",
+      "size": 3183044
+    },
+    {
+      "path": "data/cache/ibge_localidades",
+      "name": "ibge_localidades",
+      "ext": "[none]",
+      "size": 2470036
+    },
+    {
+      "path": "data/cache/ibge_sidra_mun_2026_2026",
+      "name": "ibge_sidra_mun_2026_2026",
+      "ext": "[none]",
+      "size": 1508656
+    },
+    {
+      "path": "data/processed/geo_municipios.json",
+      "name": "geo_municipios.json",
+      "ext": ".json",
+      "size": 1485243
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/review-fd4bfc1..57adedd.diff",
+      "name": "review-fd4bfc1..57adedd.diff",
+      "ext": ".diff",
+      "size": 298750
+    },
+    {
+      "path": "tests/test_bin",
+      "name": "test_bin",
+      "ext": "[none]",
+      "size": 247888
+    },
+    {
+      "path": "data/cache/ibge_sidra_ufs",
+      "name": "ibge_sidra_ufs",
+      "ext": "[none]",
+      "size": 162491
+    },
+    {
+      "path": "data/cache/ibge_malhas_estados_1",
+      "name": "ibge_malhas_estados_1",
+      "ext": "[none]",
+      "size": 129308
+    },
+    {
+      "path": "data/cache/ibge_malhas_estados_2",
+      "name": "ibge_malhas_estados_2",
+      "ext": "[none]",
+      "size": 125170
+    },
+    {
+      "path": "dashboard",
+      "name": "dashboard",
+      "ext": "[none]",
+      "size": 107448
+    },
+    {
+      "path": "data/cache/ibge_malhas_estados_3",
+      "name": "ibge_malhas_estados_3",
+      "ext": "[none]",
+      "size": 102604
+    },
+    {
+      "path": "tests/test_web.mjs",
+      "name": "test_web.mjs",
+      "ext": ".mjs",
+      "size": 95550
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/review-0df5f64..20dedf9.diff",
+      "name": "review-0df5f64..20dedf9.diff",
+      "ext": ".diff",
+      "size": 85753
+    },
+    {
+      "path": "data/processed/geo_estados.json",
+      "name": "geo_estados.json",
+      "ext": ".json",
+      "size": 81194
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/review-950b863..0df5f64.diff",
+      "name": "review-950b863..0df5f64.diff",
+      "ext": ".diff",
+      "size": 75628
+    },
+    {
+      "path": "data/cache/ibge_malhas_estados_4",
+      "name": "ibge_malhas_estados_4",
+      "ext": "[none]",
+      "size": 66524
+    },
+    {
+      "path": "data/cache/ibge_malhas_estados_5",
+      "name": "ibge_malhas_estados_5",
+      "ext": "[none]",
+      "size": 65729
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/review-df67e93..950b863.diff",
+      "name": "review-df67e93..950b863.diff",
+      "ext": ".diff",
+      "size": 54172
+    },
+    {
+      "path": "web/charts.js",
+      "name": "charts.js",
+      "ext": ".js",
+      "size": 38724
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/review-t3-t9.md",
+      "name": "review-t3-t9.md",
+      "ext": ".md",
+      "size": 38199
+    },
+    {
+      "path": "web/app.js",
+      "name": "app.js",
+      "ext": ".js",
+      "size": 35161
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/review-20dedf9..18d54de.diff",
+      "name": "review-20dedf9..18d54de.diff",
+      "ext": ".diff",
+      "size": 34986
+    },
+    {
+      "path": "tests/test_http.c",
+      "name": "test_http.c",
+      "ext": ".c",
+      "size": 33018
+    },
+    {
+      "path": "src/api.c",
+      "name": "api.c",
+      "ext": ".c",
+      "size": 32192
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/task-2-review.md",
+      "name": "task-2-review.md",
+      "ext": ".md",
+      "size": 31636
+    },
+    {
+      "path": "src/model.c",
+      "name": "model.c",
+      "ext": ".c",
+      "size": 31584
+    },
+    {
+      "path": "src/geo.c",
+      "name": "geo.c",
+      "ext": ".c",
+      "size": 30572
+    },
+    {
+      "path": "tests/test_geo.c",
+      "name": "test_geo.c",
+      "ext": ".c",
+      "size": 29819
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/task-1-report.md",
+      "name": "task-1-report.md",
+      "ext": ".md",
+      "size": 29333
+    },
+    {
+      "path": "src/http_server.c",
+      "name": "http_server.c",
+      "ext": ".c",
+      "size": 29127
+    },
+    {
+      "path": "tests/test_json.c",
+      "name": "test_json.c",
+      "ext": ".c",
+      "size": 26126
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/task-1-review.md",
+      "name": "task-1-review.md",
+      "ext": ".md",
+      "size": 24818
+    },
+    {
+      "path": "src/model.o",
+      "name": "model.o",
+      "ext": ".o",
+      "size": 24144
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/task-2-report.md",
+      "name": "task-2-report.md",
+      "ext": ".md",
+      "size": 23135
+    },
+    {
+      "path": "src/http_server.o",
+      "name": "http_server.o",
+      "ext": ".o",
+      "size": 22616
+    },
+    {
+      "path": "src/api.o",
+      "name": "api.o",
+      "ext": ".o",
+      "size": 22072
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/fix-t3-t9-report.md",
+      "name": "fix-t3-t9-report.md",
+      "ext": ".md",
+      "size": 21937
+    },
+    {
+      "path": "tests/test_api.c",
+      "name": "test_api.c",
+      "ext": ".c",
+      "size": 21663
+    },
+    {
+      "path": "src/geo.o",
+      "name": "geo.o",
+      "ext": ".o",
+      "size": 20472
+    },
+    {
+      "path": "src/aggregate.c",
+      "name": "aggregate.c",
+      "ext": ".c",
+      "size": 20020
+    },
+    {
+      "path": "src/json.c",
+      "name": "json.c",
+      "ext": ".c",
+      "size": 19534
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-02-dashboard-dados-publicos-plan/task-1-rereview.md",
+      "name": "task-1-rereview.md",
+      "ext": ".md",
+      "size": 19453
+    }
+  ]
+}

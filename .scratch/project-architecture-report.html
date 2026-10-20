@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard de Dados Públicos — Mapa de Arquitetura e Pendências</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d2129; --linha:#272c36;
+    --txt:#e6e8ec; --fraco:#98a1b3; --acento:#4da3ff; --ok:#3fb950;
+    --warn:#d29922; --erro:#f85149; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{padding:36px 32px 22px;border-bottom:1px solid var(--linha);
+         background:linear-gradient(180deg,#141822,#0f1115)}
+  h1{margin:0 0 6px;font-size:26px;letter-spacing:-.4px}
+  h2{margin:44px 0 14px;font-size:20px;padding-bottom:8px;border-bottom:1px solid var(--linha)}
+  h3{margin:26px 0 10px;font-size:16px;color:var(--acento)}
+  .sub{color:var(--fraco);font-size:14px}
+  main{max-width:1180px;margin:0 auto;padding:0 32px 80px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--linha);vertical-align:top}
+  th{color:var(--fraco);font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px}
+  tr:hover td{background:#1a1e26}
+  code,.mono{font-family:var(--mono);font-size:13px}
+  code{background:#22262f;padding:1px 5px;border-radius:4px;color:#c9d1d9}
+  .grade{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin:16px 0}
+  .card{background:var(--card);border:1px solid var(--linha);border-radius:10px;padding:16px}
+  .card h4{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--fraco)}
+  .card .n{font-size:28px;font-weight:700;letter-spacing:-1px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;
+        font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+  .ok{background:rgba(63,185,80,.15);color:var(--ok)}
+  .warn{background:rgba(210,153,34,.15);color:var(--warn)}
+  .erro{background:rgba(248,81,73,.15);color:var(--erro)}
+  .neu{background:rgba(152,161,179,.15);color:var(--fraco)}
+  nav{background:var(--card);border:1px solid var(--linha);border-radius:10px;
+      padding:14px 18px;margin:22px 0;columns:2;column-gap:30px}
+  nav a{color:var(--acento);text-decoration:none;display:block;padding:2px 0;font-size:14px}
+  nav a:hover{text-decoration:underline}
+  pre{background:#12151c;border:1px solid var(--linha);border-radius:8px;padding:13px 15px;
+      overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#c9d1d9}
+  .fluxo{background:#12151c;border:1px solid var(--linha);border-radius:8px;padding:16px;
+         font-family:var(--mono);font-size:12.5px;white-space:pre;overflow-x:auto;color:#c9d1d9}
+  blockquote{margin:14px 0;padding:10px 16px;border-left:3px solid var(--acento);
+             background:rgba(77,163,255,.07);color:#c9d1d9}
+  .incerto{color:var(--warn);font-style:italic}
+  ul{padding-left:22px}
+  li{margin:4px 0}
+  .col2{display:grid;gap:20px;grid-template-columns:1fr 1fr}
+  @media(max-width:760px){.col2{grid-template-columns:1fr}nav{columns:1}}
+  footer{color:var(--fraco);font-size:13px;border-top:1px solid var(--linha);
+         padding:20px 32px;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Dashboard de Dados Públicos — Mapa de Arquitetura e Pendências</h1>
+  <div class="sub">
+    <span class="mono">/home/mathofjesus/Projetos/Dashboard</span> ·
+    HEAD <span class="mono">e6ff6ec</span> (2026-10-05) ·
+    inventário de 2026-10-19 ·
+    plano: <span class="mono">~/.opencode/plan/2026-10-02-dashboard-dados-publicos-plan.md</span>
+  </div>
+</header>
+
+<main>
+
+<nav>
+  <a href="#s1">1. Overview</a>
+  <a href="#s2">2. Mapa de arquitetura</a>
+  <a href="#s3">3. Fluxos de execução</a>
+  <a href="#s4">4. Modelo de dados</a>
+  <a href="#s5">5. Dependências</a>
+  <a href="#s6">6. Inventário de código</a>
+  <a href="#s7">7. Pontos de dor</a>
+  <a href="#s8">8. Mapa de necessidades</a>
+  <a href="#s9">9. Apêndice</a>
+</nav>
+
+<!-- ---------------------------------------------------------------- -->
+<h2 id="s1">1. Overview</h2>
+
+<p><strong>Propósito:</strong> dashboard de indicadores públicos brasileiros — população
+(IBGE/SIDRA), estabelecimentos, leitos, UTI (CNES/Leitos_SUS) e casos de dengue (SINAN) —
+com coroplético por município ou UF, servido localmente.</p>
+
+<p><strong>Forma atual:</strong> C11 puro (sem framework, só <code>-lz</code>) + front vanilla
+ES modules sem build step. Servidor HTTP com <code>fork()</code> por conexão, gzip via zlib,
+Range requests, índice agregado em memória e malhas IBGE simplificadas em disco.</p>
+
+<p><strong>Estado:</strong> 11 das 13 tarefas do plano entregues. A Tarefa 12 (cache do CNES)
+parou na quarta parte e <strong>deixou o portão do projeto vermelho</strong> — a Tarefa 13
+(verificação de ponta a ponta) não começou.</p>
+
+<div class="grade">
+  <div class="card"><h4>Código C</h4><div class="n">28</div>
+    <div class="sub">arquivos <code>.c</code> · 8.222 linhas · 251 kB</div></div>
+  <div class="card"><h4>Testes</h4><div class="n">16</div>
+    <div class="sub">suítes (14 C + 2 JS) · ~7.300 linhas</div></div>
+  <div class="card"><h4>Portão <code>make test</code></h4><div class="n" style="color:var(--erro)">SEGV</div>
+    <div class="sub">quebra em <code>test_saude.c:225</code></div></div>
+  <div class="card"><h4>Indicadores com dado</h4><div class="n" style="color:var(--warn)">1 / 5</div>
+    <div class="sub">só <code>população</code> é ingerida</div></div>
+</div>
+
+<h3>O que provavelmente precisa a seguir (resumo)</h3>
+<ol>
+  <li><strong>Consertar o portão</strong> — uma linha em <code>monta_fixture</code> derruba
+      <code>make test</code> com estouro de buffer na stack.</li>
+  <li><strong>Fechar a Tarefa 12</strong> — Leitos/Dengue, ligar <code>dataset_saude.c</code>
+      ao binário, rota <code>/api/cnes</code>, <code>web/cnes.js</code>.</li>
+  <li><strong>Executar a Tarefa 13</strong> — e2e, screenshots, verificação de acentos,
+      <code>VERIFICACAO.md</code>.</li>
+  <li><strong>Revisar com o mesmo rigor das Tarefas 1–2 e do T3–T9</strong> — a detecção de
+      trabalho incompleto só funcionou por acidente até aqui.</li>
+</ol>
+
+<!-- ---------------------------------------------------------------- -->
+<h2 id="s2">2. Mapa de arquitetura</h2>
+
+<div class="fluxo">┌───────────────────── INGESTÃO (uma vez, offline) ─────────────────────┐
+│                                                                        │
+│  fontes.conf ──► http_client.c ──► cache.c ──► data/cache/             │
+│  (TTL, URL,       (curl CLI via      (.ttl +                            │
+│   dataset)         popen)             arquivo)                          │
+│                                        │                               │
+│      ┌─────────────────────────────────┼──────────────────────────┐    │
+│      ▼                                 ▼                          ▼    │
+│  model_ingere_ibge                geo_prepara              dataset_saude│
+│  (json.c, charset.c)          (json.c + zip? não, JSON)    (zip.c,     │
+│      │                             │                        csv.c)     │
+│      ▼                             ▼                          │        │
+│  data/processed/modelo.idx   data/processed/geo_*.json        ▼        │
+│  (3,1 MB, IND_TOTAL×N×anos)  (81 KB / 1,49 MB)         cnes.json ✗ NÃO  │
+└────────────────────────────────────────────────────────────────────────┘
+                │                        │
+                ▼                        ▼
+┌────────────────── SERVIDOR (main.c, http_server.c) ───────────────────┐
+│  model_carrega ──► api_set_model ──► http_serve_loop (fork/conexão)   │
+│                                          │                            │
+│                    ┌─────────────────────┴──────────────┐             │
+│                    ▼                                    ▼             │
+│              api.c (api_roteia)                  web/ estático        │
+│              aggreate.c ──► aggregate_consulta    (http_serve_range)  │
+│              geo.c      ──► geo_saida[_filtrada]                      │
+└───────────────────────────────────────────────────────────────────────┘
+                │
+                ▼   GET /api/consulta | /api/opcoes | /api/valores
+                    /api/geo/{estados,municipios} | /api/mapa/uf
+                    /api/cnes  ✗ inexistente
+┌────────────────── NAVEGADOR (web/, ES modules) ──────────────────────┐
+│  app.js (orquestração, 816 l)  ──┬── api.js    (HTTP + consultar/geo) │
+│                                  ├── filters.js(painel, 299 l)        │
+│                                  ├── charts.js (SVG, 991 l)           │
+│                                  └── map.js    (coroplético, 489 l)   │
+│  cnes.js ✗ não existe — sem Range requests, sem typed arrays          │
+└───────────────────────────────────────────────────────────────────────┘</div>
+
+<table>
+<thead><tr><th>Camada</th><th>Arquivos</th><th>Responsabilidade</th><th>Estado</th></tr></thead>
+<tbody>
+<tr><td>CLI / ciclo de vida</td><td class="mono">main.c (327)</td>
+    <td><code>--atualizar [ibge|malhas]</code>, <code>--porta</code>, <code>--web</code>,
+        <code>--geo-info</code>, <code>--amostra</code>; portão de primeira execução</td>
+    <td><span class="pill warn">parcial</span></td></tr>
+<tr><td>Transporte</td><td class="mono">http_server.c (952)</td>
+    <td>sockets POSIX, <code>fork()</code> por conexão, Range, gzip, <code>sigaction</code></td>
+    <td><span class="pill ok">pronto</span></td></tr>
+<tr><td>Roteamento</td><td class="mono">api.c (801)</td>
+    <td>4 grupos de rota, envelope <code>{erro:{codigo,mensagem}}</code>, gzip na geometria</td>
+    <td><span class="pill warn">6/7 rotas</span></td></tr>
+<tr><td>Domínio</td><td class="mono">model.c (897), aggregate.c (511)</td>
+    <td>índice <code>indicador × município × ano</code>; filtros, KPIs, série, opções</td>
+    <td><span class="pill warn">1/5 indicadores</span></td></tr>
+<tr><td>Geometria</td><td class="mono">geo.c (904)</td>
+    <td>malhas IBGE do cache, merge, Douglas-Peucker, graus×1000</td>
+    <td><span class="pill ok">pronto</span></td></tr>
+<tr><td>Ingestão saúde</td><td class="mono">dataset_saude.c (302)</td>
+    <td>poda + transcodificação do CNES; Leitos/Dengue declarados e ausentes</td>
+    <td><span class="pill erro">órfão</span></td></tr>
+<tr><td>Front</td><td class="mono">web/*.js (2.815)</td>
+    <td>7 módulos ES; separação cálculo/render para testabilidade em node</td>
+    <td><span class="pill warn">sem CNES</span></td></tr>
+</tbody>
+</table>
+
+<h3>Entrypoints</h3>
+<table>
+<thead><tr><th>Entrypoint</th><th>Tipo</th><th>Fluxo</th></tr></thead>
+<tbody>
+<tr><td class="mono">src/main.c:main</td><td>CLI</td><td>parse de flags → <code>atualiza()</code> ou portão → <code>carrega</code> → <code>http_serve_loop</code></td></tr>
+<tr><td class="mono">src/http_server.c</td><td>socket</td><td>accept → fork → parse → <code>api_roteia</code> ou estático → <code>write</code> → exit</td></tr>
+<tr><td class="mono">src/api.c:api_roteia (371)</td><td>dispatch</td><td>5 caminhos com <code>strcmp</code> exato; resto → 404</td></tr>
+<tr><td class="mono">web/index.html → app.js:criarApp</td><td>DOM</td><td>estado inicial vazio → Filtrar → <code>consultar()</code> → render</td></tr>
+</tbody>
+</table>
+
+<h3>Rotas declaradas no contrato (spec §8) × implementadas</h3>
+<table>
+<thead><tr><th>Rota</th><th>Implementação</th><th>Estado</th></tr></thead>
+<tbody>
+<tr><td class="mono">GET /api/opcoes</td><td class="mono">api.c:535</td><td><span class="pill ok">ok</span></td></tr>
+<tr><td class="mono">GET /api/consulta</td><td class="mono">api.c:398</td><td><span class="pill ok">ok</span></td></tr>
+<tr><td class="mono">GET /api/valores</td><td class="mono">api.c:618</td><td><span class="pill neu">fora da spec</span></td></tr>
+<tr><td class="mono">GET /api/geo/{estados,municipios}</td><td class="mono">api.c:757</td><td><span class="pill ok">ok</span></td></tr>
+<tr><td class="mono">GET /api/mapa/uf</td><td class="mono">api.c:758</td><td><span class="pill neu">fora da spec</span></td></tr>
+<tr><td class="mono">GET /api/cnes</td><td>—</td><td><span class="pill erro">404 (cai no ramo final)</span></td></tr>
+</tbody>
+</table>
+
+<!-- ---------------------------------------------------------------- -->
+<h2 id="s3">3. Fluxos de execução</h2>
+
+<h3>3.1 Ingestão IBGE</h3>
+<div class="fluxo">./dashboard --atualizar ibge
+  └─ atualiza(fonte)
+      ├─ model_ingere_ibge(fontes.conf)          ← 8 requisições de 3 anos (457 kB cada)
+      │    ├─ fontes_garente()  → cache.c: existe e não expirou?
+      │    ├─ http_client.c     → curl CLI (--max-time), UTF-8
+      │    ├─ json.c            → parse do SIDRA
+      │    ├─ model_local_de_cod()  → join por CO_IBGE
+      │    └─ grava modelo.idx  (3.183.044 bytes)
+      ├─ atualiza_malhas()
+      │    ├─ geo_prepara(ESTADOS)     → merge de 5 coleções → 81.194 B
+      │    └─ geo_prepara(MUNICIPIOS)  → 5.570 features       → 1.485.243 B
+      └─ geo_info() + reimpressão do resumo do modelo</div>
+
+<h3>3.2 Ingestão CNES — <span style="color:var(--erro)">bloqueada no CLI</span></h3>
+<div class="fluxo">./dashboard --atualizar cnes --limite-amostra 1000
+  └─ main.c:141  strcmp(fonte,"cnes") == 0
+      └─ fprintf(stderr, "--atualizar cnes ainda não é implementado…")
+         return 2          ← recusa explícita e deliberada
+
+  saude_processa_cnes() existe (302 linhas) e só é chamada por tests/test_saude.c.
+  dataset_saude.c NÃO está em SRC do Makefile — só em TEST_SRC.
+  A flag --limite-amostra não é reconhecida por main.c (nem aparece em uso()).</div>
+
+<h3>3.3 Requisição de consulta</h3>
+<div class="fluxo">GET /api/consulta?fonte=ibge&ano=2024&uf=RO
+  └─ http_serve_loop ──fork──► http_handle_client
+      └─ api_roteia
+          ├─ text_query_get + text_url_decode
+          ├─ indicador_de()   → default IND_POPULACAO se ausente
+          ├─ aggregate_consulta(model, ind, nivel_uf, uf, ano, busca, ordenar, limite)
+          ├─ aggregate_serie[_uf]  só com cod= ou nivel=uf&uf=
+          └─ monta_consulta → {consulta, total, kpis, registros[, serie]}
+              res.gzip = 1 quando aplicável</div>
+
+<h3>3.4 Carga do front</h3>
+<div class="fluxo">index.html → app.js:criarApp
+  ├─ renderVazio()            estado inicial em branco (spec §10)
+  ├─ carregarMapa()           GET /api/geo/municipios (gzip, 290 kB na rede)
+  │    └─ map.js:geometriaMapa / desenharMapa ; cacheGeo em memória
+  └─ [usuário clica Filtrar]
+      ├─ lerFormulario (filters.js)
+      ├─ mostrarSpinner
+      ├─ api.js:consultar()   → renderKpis + renderTabela + renderGraficos + renderMapa
+      └─ buscaValoresMapa()   → pinta coroplético por codarea
+
+  Sem caminho para CNES: nenhum módulo web/ menciona "cnes".</div>
+
+<!-- ---------------------------------------------------------------- -->
+<h2 id="s4">4. Modelo de dados</h2>
+
+<h3>4.1 Índice em memória — <code>data/processed/modelo.idx</code></h3>
+<pre>magic "DMODIDX1\n"  versao 1
+model {
+  size_t n_local;  locality *local;   /* cod[8] nome[96] uf[3] regiao[24] */
+  size_t n_anos;   int *anos;
+  int   *valores;                     /* IND_TOTAL × n_local × n_anos */
+  size_t n_ufs;    uf_info *ufs;
+}
+valores[ind * (n_local*n_anos) + i_local*n_anos + k_ano]
+MODELO_AUSENTE = -1   /* "" | ".." | "..." nunca viram 0 */</pre>
+
+<blockquote>O comentário de topo de <code>model.h</code> registra que a versão anterior declarava
+<code>int valores[IND_TOTAL][5570]</code> e lia até 122.539 numa linha de 5.570 ints —
+20 bytes além do fim da linha. AddressSanitizer confirmou (achado C4 da revisão T3–T9).
+Hoje o array é alocado com passo calculado.</blockquote>
+
+<table>
+<thead><tr><th>Indicador</th><th>Enum</th><th>Fonte</th><th>Preenchido?</th></tr></thead>
+<tbody>
+<tr><td>população</td><td class="mono">IND_POPULACAO</td><td>SIDRA t.6579 v.9324</td><td><span class="pill ok">sim</span> <code>model.c:705</code></td></tr>
+<tr><td>estabelecimentos</td><td class="mono">IND_ESTABELECIMENTOS</td><td>CNES</td><td><span class="pill erro">nunca escrito</span></td></tr>
+<tr><td>leitos</td><td class="mono">IND_LEITOS</td><td>Leitos_SUS</td><td><span class="pill erro">nunca escrito</span></td></tr>
+<tr><td>uti</td><td class="mono">IND_UTI</td><td>Leitos_SUS</td><td><span class="pill erro">nunca escrito</span></td></tr>
+<tr><td>dengue</td><td class="mono">IND_DENGUE</td><td>SINAN</td><td><span class="pill erro">nunca escrito</span></td></tr>
+</tbody>
+</table>
+
+<p class="incerto">Consequência verificável: <code>api.c:209-216</code> aceita
+<code>indicador=leitos</code> e devolve 200 com o array inteiro em <code>MODELO_AUSENTE</code>.
+Nenhum teste cobre isso — <code>grep IND_LEITOS src/*.c</code> só encontra o mapeamento de nome.
+Needs evidence: se a intenção é 400/503 explícito para indicador sem dado, é decisão a registrar.</p>
+
+<h3>4.2 Geometria — <code>data/processed/geo_*.json</code></h3>
+<table>
+<thead><tr><th></th><th>estados</th><th>municípios</th></tr></thead>
+<tbody>
+<tr><td>features</td><td>27</td><td>5.570</td></tr>
+<tr><td>bytes em disco</td><td>81.194</td><td>1.485.243</td></tr>
+<tr><td>bytes gzip na rede</td><td>—</td><td>286.450 (4,2× abaixo do teto da spec)</td></tr>
+<tr><td>properties</td><td colspan="2"><code>codarea</code> + <code>centroide</code> — nunca valores de indicador</td></tr>
+<tr><td>coordenadas</td><td colspan="2">graus × 1000, inteiras (contrato com <code>map.js</code>)</td></tr>
+<tr><td>tol. simplificação</td><td colspan="2"><code>TOLERANCIA_SIMPLIFICACAO 0.05</code> (<code>geo.h:72</code>) — ruling: não baixar</td></tr>
+</tbody>
+</table>
+
+<h3>4.3 Cache e artefatos</h3>
+<table>
+<thead><tr><th>Diretório</th><th>Conteúdo</th><th>Tamanho</th><th>Versionado?</th></tr></thead>
+<tbody>
+<tr><td class="mono">data/cache/</td><td>18 arquivos brutos + <code>.ttl</code> (8 B cada)</td><td>~41 MB</td><td>não (<code>.gitignore</code>)</td></tr>
+<tr><td class="mono">data/processed/</td><td><code>modelo.idx</code>, <code>geo_estados.json</code>, <code>geo_municipios.json</code></td><td>4,7 MB</td><td>não</td></tr>
+<tr><td class="mono">data/processed/</td><td><code>cnes.json</code></td><td>—</td><td><strong>não existe</strong></td></tr>
+</tbody>
+</table>
+
+<!-- ---------------------------------------------------------------- -->
+<h2 id="s5">5. Dependências</h2>
+
+<div class="col2">
+<div>
+<h3>Compilação</h3>
+<table>
+<thead><tr><th>Dependência</th><th>Uso</th></tr></thead>
+<tbody>
+<tr><td class="mono">libz (-lz)</td><td>inflate do ZIP (<code>zip.c</code>) e gzip das respostas</td></tr>
+<tr><td class="mono">POSIX sockets</td><td><code>fork()</code>, <code>sigaction</code>, <code>waitpid</code></td></tr>
+<tr><td class="mono">gcc -std=c11</td><td><code>-Wall -Wextra -O2</code>, zero avisos hoje</td></tr>
+</tbody>
+</table>
+</div>
+<div>
+<h3>Runtime</h3>
+<table>
+<thead><tr><th>Dependência</th><th>Uso</th></tr></thead>
+<tbody>
+<tr><td class="mono">curl (CLI)</td><td>todo download — via <code>popen()</code>, nunca libcurl</td></tr>
+<tr><td class="mono">node</td><td>só os testes de front; <code>make test</code> falha claro se ausente</td></tr>
+<tr><td class="mono">agent-browser</td><td>verificação visual da Tarefa 13</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<h3>Serviços externos</h3>
+<table>
+<thead><tr><th>Serviço</th><th>Endpoint</th><th>Usado</th></tr></thead>
+<tbody>
+<tr><td>IBGE Localidades</td><td class="mono">servicodados.ibge.gov.br/api/v1/localidades/municipios</td><td><span class="pill ok">sim</span></td></tr>
+<tr><td>IBGE SIDRA</td><td class="mono">apisidra.ibge.gov.br/values/t/6579/…</td><td><span class="pill ok">sim</span></td></tr>
+<tr><td>IBGE Malhas</td><td class="mono">servicodados.ibge.gov.br/api/v2/malhas/…</td><td><span class="pill ok">sim</span></td></tr>
+<tr><td>CNES (S3)</td><td class="mono">s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/…</td><td><span class="pill warn">URL em fontes.conf, não chamada</span></td></tr>
+<tr><td>Leitos_SUS (S3)</td><td class="mono">…/Leitos_SUS/Leitos_csv_2026.zip</td><td><span class="pill warn">idem</span></td></tr>
+<tr><td>Dengue SINAN (S3)</td><td class="mono">…/SINAN/Dengue/csv/DENGBR26.csv.zip</td><td><span class="pill warn">idem</span></td></tr>
+</tbody>
+</table>
+
+<blockquote>Acoplamento oculto de operação: <code>data/</code> é relativo ao <strong>diretório de
+execução</strong>, não ao binário. O <code>Makefile</code> e os testes criam cwd temporário para
+isso não virar bug; rodar <code>./dashboard</code> de fora da raiz do projeto falha o portão.</blockquote>
+
+<!-- ---------------------------------------------------------------- -->
+<h2 id="s6">6. Inventário de código</h2>
+
+<h3>Módulos C — linhas e funções</h3>
+<table>
+<thead><tr><th>Arquivo</th><th>Linhas</th><th>Funções</th><th>Suíte de teste</th><th>Linhas de teste</th></tr></thead>
+<tbody>
+<tr><td class="mono">http_server.c</td><td>952</td><td>27</td><td class="mono">test_http.c</td><td>896</td></tr>
+<tr><td class="mono">geo.c</td><td>904</td><td>32</td><td class="mono">test_geo.c</td><td>763</td></tr>
+<tr><td class="mono">model.c</td><td>897</td><td>30</td><td class="mono">test_model.c</td><td>193</td></tr>
+<tr><td class="mono">api.c</td><td>801</td><td>16</td><td class="mono">test_api.c</td><td>496</td></tr>
+<tr><td class="mono">json.c</td><td>654</td><td>24</td><td class="mono">test_json.c</td><td>612</td></tr>
+<tr><td class="mono">aggregate.c</td><td>511</td><td>13</td><td class="mono">test_aggregate.c</td><td>392</td></tr>
+<tr><td class="mono">csv.c</td><td>492</td><td>17</td><td class="mono">test_csv.c</td><td>283</td></tr>
+<tr><td class="mono">cache.c</td><td>351</td><td>12</td><td class="mono">test_cache.c</td><td>423</td></tr>
+<tr><td class="mono">main.c</td><td>327</td><td>8</td><td>— (via <code>test_web.sh</code>)</td><td>—</td></tr>
+<tr><td class="mono">dataset_saude.c</td><td>302</td><td>5</td><td class="mono">test_saude.c</td><td>414 <span class="pill erro">SEGV</span></td></tr>
+<tr><td class="mono">fontes.c</td><td>266</td><td>8</td><td class="mono">test_fontes.c</td><td>151</td></tr>
+<tr><td class="mono">zip.c</td><td>265</td><td>8</td><td class="mono">test_zip.c</td><td>410</td></tr>
+<tr><td class="mono">charset.c</td><td>245</td><td>7</td><td class="mono">test_charset.c</td><td>74</td></tr>
+<tr><td class="mono">http_client.c</td><td>151</td><td>3</td><td class="mono">test_http_client.c</td><td>228 <span class="pill neu">só --rede</span></td></tr>
+</tbody>
+</table>
+
+<h3>Front</h3>
+<table>
+<thead><tr><th>Arquivo</th><th>Linhas</th><th>Papel</th></tr></thead>
+<tbody>
+<tr><td class="mono">web/charts.js</td><td>991</td><td>geometria pura + render SVG (linha, barras, donut, KPI, escala sequencial)</td></tr>
+<tr><td class="mono">web/app.js</td><td>816</td><td>orquestração, estado, botão Filtrar, tabela, mapas e erros</td></tr>
+<tr><td class="mono">web/map.js</td><td>489</td><td>coroplético, projeção, bandas da escala, legenda</td></tr>
+<tr><td class="mono">web/filters.js</td><td>299</td><td>painel, indicadores por fonte, validação</td></tr>
+<tr><td class="mono">web/api.js</td><td>220</td><td>5 funções de rede; <strong>sem Range requests</strong></td></tr>
+<tr><td class="mono">web/index.html</td><td>—</td><td>estrutura + estado vazio</td></tr>
+<tr><td class="mono">web/styles.css</td><td>—</td><td>sistema visual (direção escura, skill <code>frontend-design</code>)</td></tr>
+<tr><td class="mono">web/cnes.js</td><td>—</td><td><span class="pill erro">não existe</span></td></tr>
+</tbody>
+</table>
+
+<h3>Comandos (raiz)</h3>
+<pre>make                     # compila dashboard (13 objetos, SRC sem dataset_saude.c)
+make test                # tests/test_bin + test_web.mjs + test_map.js + test_web.sh
+make test-rede           # ./tests/test_bin --rede   (só http_client)
+make clean
+
+./dashboard --atualizar [ibge|malhas]     # cnes|leitos|dengue → recusa, exit 2
+./dashboard [--porta N] [--web DIR] [--geo-info] [--amostra]</pre>
+
+<!-- ---------------------------------------------------------------- -->
+<h2 id="s7">7. Pontos de dor</h2>
+
+<h3>7.1 🔴 O portão do projeto está vermelho (bloqueia tudo)</h3>
+<pre>$ make test
+--- saude
+testa_cnes_poda_e_acento
+make: *** [Makefile:27: test] Falha de segmentação
+
+$ gdb -q -batch -ex run -ex bt ./tests/test_bin
+#0 crc32_z () from libz.so.1
+#1 monta_fixture ()      tests/test_saude.c:225
+#2 teste_cnes_poda_e_acento ()</pre>
+<p>Causa raiz em <code>tests/test_saude.c:223-225</code>:</p>
+<pre>escreve_csv_amostra(csv, &amp;n);                 /* grava o ARQUIVO; *out_len = tamanho */
+escreve_zip_stored(zip, "…csv", csv, n);      /* ← passa o CAMINHO (64 B) com n ≈ 10 KB */</pre>
+<p><code>escreve_zip_stored</code> espera o <strong>conteúdo</strong>:
+<code>crc32(0, csv, (uInt)csv_len)</code> e três <code>fwrite(csv, 1, n)</code>. Recebe
+<code>char csv[256]</code> — estouro de ~4 KB na stack. Mesmo sem o crash, o ZIP conteria o texto
+do caminho e a asserção de acento falharia.</p>
+<blockquote>O commit <code>e6ff6ec</code> declara "Implementa processamento e testes" e foi feito com
+o Passo 5 do brief ("<code>make test</code> e confirmar que passa") não executado. É o mesmo padrão
+da "derrota de processo" já registrada no ledger para as Tarefas 3–9.</blockquote>
+
+<h3>7.2 🔴 Dois módulos com status oposto ao relatório</h3>
+<table>
+<thead><tr><th>Sintoma</th><th>Evidência</th></tr></thead>
+<tbody>
+<tr><td><code>model_carrega</code> era stub — <em>resolvido</em></td>
+    <td class="mono">model.c:705 preenche IND_POPULACAO; teste real de 5570 municípios passou</td></tr>
+<tr><td><code>IND_ESTABELECIMENTOS…IND_DENGUE</code> são <strong>4 enums sem dado</strong></td>
+    <td class="mono">grep "valores\[" src/model.c → só IND_POPULACAO</td></tr>
+<tr><td>API responde 200 para indicador vazio</td>
+    <td class="mono">api.c:209-216 aceita leitos/uti/dengue sem checar se há dado</td></tr>
+</tbody>
+</table>
+<p>Não é bug novo — é a <em>mesma</em> classe de defeito que a rodada consolidada corrigiu: um
+caminho feliz que nunca rodou contra a fonte real devolve 200 em vez de erro.</p>
+
+<h3>7.3 🔴 Módulo órfão e API inacabada na Tarefa 12</h3>
+<ul>
+<li><code>dataset_saude.c</code> está em <code>TEST_SRC</code> mas <strong>não em <code>SRC</code></strong>
+    — não é linkado no <code>dashboard</code>. Código testado que o produto não usa.</li>
+<li><code>saude_processa_leitos</code> e <code>saude_processa_dengue</code> estão declaradas em
+    <code>dataset_saude.h:120,131</code> e <strong>não têm corpo</strong>.</li>
+<li><code>tests/test_cnes.sh</code> (Passo 2 do brief) não existe.</li>
+<li><code>main.c:141</code> recusa cnes/leitos/dengue por decisão explícita e comentada.</li>
+<li><code>tests/test_cnes_sample.sh</code> existe e é boa documentação, mas o conteúdo está
+    <strong>duplicado</strong> dentro de <code>test_saude.c</code> (<code>escreve_csv_amostra</code>,
+    <code>escreve_zip_stored</code>, ~150 linhas). Duas fontes de verdade para a mesma fixture.</li>
+<li>Nada em <code>web/</code> menciona CNES; <code>web/api.js</code> não tem Range.</li>
+</ul>
+
+<h3>7.4 🟡 Risco herdado não tratado: <code>malloc</code> do arquivo inteiro em Range</h3>
+<p>O ledger registra como <em>ruling</em> da Tarefa 1: "corpo em memória… não é aceitável na Tarefa
+12, que serve o CNES pré-processado com ~70 MB. Carregado como requisito duro no despacho da
+Tarefa 12." A Tarefa 12 chegou e o requisito <strong>não foi endereçado</strong> — e agora é
+necessário em dois lugares: o servidor (<code>http_serve_range</code>) e o cliente
+(<code>web/api.js</code>, que ainda não faz Range algum).</p>
+
+<h3>7.5 🟡 Rastreabilidade: o ledger não reflete o repositório</h3>
+<p><code>progress.md</code> para em "T3–T9 revisão consolidada… merge 3e9c501". As Tarefas 10, 11 e 12
+não têm entrada de progresso, relatório em <code>task-1X-report.md</code>, nem linha no ledger.
+Os relatórios <code>task-3…8-report.md</code> vivem na <strong>raiz</strong> enquanto os briefs
+vivem em <code>.superpowers/sdd/…/</code> — dois lugares para a mesma informação.</p>
+
+<h3>7.6 🟡 Divergências de spec acumuladas (todas com ruling, nenhuma silenciosa)</h3>
+<table>
+<thead><tr><th>Item</th><th>Spec</th><th>Realidade</th><th>Ruling</th></tr></thead>
+<tbody>
+<tr><td>Malha em disco</td><td>&lt; 1.200.000 B</td><td>1.485.243 B</td>
+    <td>manter tol. 0,05; o que importa é o payload (286 kB gzip)</td></tr>
+<tr><td>Municípios</td><td>exatamente 5570</td><td>5571 localidades, 5570 polígonos</td>
+    <td>"&gt;= 5500"; <code>5101837</code> sem polígono</td></tr>
+<tr><td><code>serie</code> sem recorte</td><td>sempre presente</td><td>só com <code>cod=</code>/<code>nivel=uf</code></td>
+    <td>evita 600 kB por consulta</td></tr>
+<tr><td><code>dataset_ibge.c</code> / <code>text.c</code></td><td>previstos em §16</td>
+    <td>fundidos em <code>model.c</code> e <code>charset.c</code></td>
+    <td>não documentado no ledger</td></tr>
+<tr><td><code>--atualizar</code></td><td>obrigatório antes do servidor</td><td>implementado</td>
+    <td>ok</td></tr>
+</tbody>
+</table>
+
+<h3>7.7 🟡 Minor deferidos acumulados</h3>
+<ul>
+<li>Tarefa 1: M1–M8 + N1–N3 (corpo em memória, <code>fork()&lt;0</code> sem resposta, fixtures
+    vazando, <code>strstr("..")</code> em <code>rel..atorio.txt</code>, <code>GET /sub/</code> com Range → 404)</li>
+<li>Tarefa 2: M2–M6 (código de saída do curl, topo do parser aceita <code>1abc</code>,
+    sem <code>fsync</code> antes do <code>rename</code>, <code>CACHE_DIR</code> relativo)</li>
+<li>Revisão T3–T9: M1–M14 — "não tocados, por instrução"</li>
+</ul>
+<p class="incerto">Needs evidence: nenhum deles foi re-triado após as rodadas de correção;
+é possível que alguns já tenham sido corrigidos de passagem.</p>
+
+<h3>7.8 🟢 Coisas que estão genuinamente boas</h3>
+<ul>
+<li><code>testa_ordem_estavel</code> apaga o artefato antes de <strong>cada</strong> build — a
+    comparação byte a byte não é circular.</li>
+<li>Testes de geometria devolvem a saída ao próprio <code>json_parse</code> do projeto; foi assim
+    que o bug <code>]}</code> vs <code>]}}</code> apareceu (os testes por <code>strstr</code> passavam).</li>
+<li>Separação cálculo/render no front (ruling C-5) permitiu 142 testes de front sem jsdom.</li>
+<li><code>test_web.sh</code> sobe um servidor real em porta efêmera com cwd temporário — 32 verificações.</li>
+<li>Comentários de topo explicam <em>por que</em>, com números medidos (5.781.544 B, 0,07 s,
+    87,3 MB RSS, 43.813 → 47.384 vértices).</li>
+</ul>
+
+<!-- ---------------------------------------------------------------- -->
+<h2 id="s8">8. Mapa de necessidades</h2>
+
+<h3>8.1 Manter</h3>
+<table>
+<thead><tr><th>Item</th><th>Motivo</th></tr></thead>
+<tbody>
+<tr><td><code>http_server.c</code>, <code>json.c</code>, <code>zip.c</code>, <code>csv.c</code>, <code>charset.c</code>, <code>cache.c</code>, <code>fontes.c</code></td><td>revisados, com testes de borda e mutação</td></tr>
+<tr><td><code>geo.c</code> + <code>TOLERANCIA_SIMPLIFICACAO 0.05</code></td><td>ruling com tabela de varredura anexada ao header</td></tr>
+<tr><td><code>web/charts.js</code>, <code>web/map.js</code></td><td>funções puras testáveis; direção visual já decidida</td></tr>
+<tr><td>Estrutura de <code>tests/</code> + <code>make test</code>/<code>make test-rede</code></td><td>hermética, sem rede por padrão</td></tr>
+</tbody>
+</table>
+
+<h3>8.2 Mudar</h3>
+<table>
+<thead><tr><th>#</th><th>Item</th><th>Tamanho</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>tests/test_saude.c:218-226</code> — <code>monta_fixture</code> ler o CSV para memória</td><td>~10 linhas</td></tr>
+<tr><td>2</td><td><code>Makefile:5</code> — <code>dataset_saude.c</code> em <code>SRC</code></td><td>1 linha</td></tr>
+<tr><td>3</td><td><code>src/dataset_saude.c</code> — corpos de Leitos e Dengue</td><td>~150 linhas</td></tr>
+<tr><td>4</td><td><code>src/main.c</code> — aceitar <code>--atualizar cnes|leitos|dengue --limite-amostra N</code></td><td>~40 linhas</td></tr>
+<tr><td>5</td><td><code>src/api.c</code> — rota <code>api/cnes</code> com <code>http_serve_range</code></td><td>~40 linhas</td></tr>
+<tr><td>6</td><td><code>src/http_server.c</code> — Range sem <code>malloc</code> do arquivo inteiro (ruling T1)</td><td>~60 linhas</td></tr>
+<tr><td>7</td><td><code>web/cnes.js</code> novo + Range em <code>web/api.js</code> + ligação em <code>app.js</code></td><td>~200 linhas</td></tr>
+<tr><td>8</td><td>Decidir o contrato para indicador sem dado (<code>api.c</code>)</td><td>decisão + ~15 linhas</td></tr>
+</tbody>
+</table>
+
+<h3>8.3 Deletar / consolidar</h3>
+<ul>
+<li>Duplicata da fixture do CNES: manter <code>test_cnes_sample.sh</code> <em>ou</em> as funções em
+    <code>test_saude.c</code>, não as duas.</li>
+<li><code>task-*-report.md</code> na raiz → <code>.superpowers/sdd/…/</code>, junto dos briefs.</li>
+<li><code>data/processed/*</code> e <code>data/cache/*</code> já estão no <code>.gitignore</code>; o
+    <code>.scratch/</code> deste relatório provavelmente também deveria estar.</li>
+</ul>
+
+<h3>8.4 Fatias de melhoria propostas (ordem de dependência)</h3>
+<table>
+<thead><tr><th>#</th><th>Fatia</th><th>Critério de aceite</th></tr></thead>
+<tbody>
+<tr><td>F0</td><td>Consertar <code>monta_fixture</code> e rodar a suíte completa</td>
+    <td><code>make test</code> exit 0; nenhum <code>FALHOU</code></td></tr>
+<tr><td>F1</td><td>Tarefa 12 passos 6–8: Leitos, Dengue, CLI, rota <code>/api/cnes</code></td>
+    <td><code>curl -H "Range: bytes=0-1023" /api/cnes</code> → 206, <code>bytes=99999999-</code> → 416</td></tr>
+<tr><td>F2</td><td>Range sem corpo inteiro em memória (dívida do ruling T1)</td>
+    <td>RSS estável servindo arquivo de 70 MB com Range</td></tr>
+<tr><td>F3</td><td>Tarefa 12 passos 9–11: <code>web/cnes.js</code>, typed arrays, progresso</td>
+    <td>CNES carrega só na 1ª consulta que o envolve; depois é local</td></tr>
+<tr><td>F4</td><td>Tarefa 13 completa</td>
+    <td><code>tests/test_e2e.sh</code> + <code>VERIFICACAO.md</code> + screenshots + acentos</td></tr>
+<tr><td>F5</td><td>Sincronizar ledger/progresso e re-triar minors</td>
+    <td><code>progress.md</code> com T10–T13; cada minor M/N marcado aberto/fechado</td></tr>
+</tbody>
+</table>
+
+<h3>8.5 Questões abertas</h3>
+<ol>
+<li>Indicador sem dado deve devolver 200 com lacunas (comportamento atual), 400, ou 503? A spec
+    §12 só prescreve envelope de erro, não este caso.</li>
+<li>O teto de 1,2 MB: aceitar o estouro (como o ruling fez), mudar o alvo, ou adotar o
+    encurtamento do RFC 7946 §3.2 que economiza 111 KB?</li>
+<li><code>--limite-amostra</code> é interface de produção ou só de teste? O brief o usa no Passo 7
+    como verificação, mas o header o documenta como uso de operador.</li>
+<li>A Tarefa 12 deve ser <em>terminada</em> ou <em>re-escopada</em>? Nada do CNES chegou ao
+    navegador, então nenhum usuário depende do formato de <code>cnes.json</code> — a forma atual
+    (linha-em-JSON) ainda é barata de mudar.</li>
+</ol>
+
+<!-- ---------------------------------------------------------------- -->
+<h2 id="s9">9. Apêndice</h2>
+
+<h3>Comandos executados nesta análise</h3>
+<pre>git log --oneline -30 ; git status --short ; cat .gitignore
+node …/project-inventory.mjs --root /home/mathofjesus/Projetos/Dashboard --out .scratch/project-inventory.json
+make -j4            → "Nada a ser feito para 'all'."
+make test           → gcc ok; ./tests/test_bin → SIGSEGV em testa_cnes_poda_e_acento
+gdb -q -batch -ex run -ex bt ./tests/test_bin
+node tests/test_web.mjs   → OK: 142 testes do front
+node tests/test_map.js    → OK: 21 testes do mapa
+sh tests/test_web.sh      → OK: 32 verificações do web
+grep -rn "cnes" src/api.c src/main.c web/ ; grep -n "valores\[" src/model.c
+wc -l src/*.c src/*.h web/*.js tests/*</pre>
+
+<h3>Arquivos gerados</h3>
+<ul>
+<li>Inventário mecânico: <code>.scratch/project-inventory.json</code> (66,8 kB; 147 arquivos, 11 diretórios)</li>
+<li>Este relatório: <code>.scratch/project-architecture-report.html</code></li>
+</ul>
+
+<h3>Premissas e lacunas</h3>
+<ul>
+<li>Os números do CNES (231 MB, 637.996 linhas) vêm do relatório da Tarefa 12, não de medição
+    minha — <span class="incerto">needs evidence</span>.</li>
+<li>O inventário mecânico não gera <code>largestFiles.bytes</code> (campo <code>undefined</code>) —
+    os tamanhos deste relatório vieram de <code>ls -la</code>/<code>du</code>.</li>
+<li><code>make test-rede</code> não foi executado (requer rede e é fora do portão).</li>
+<li>A verificação visual com <code>agent-browser</code> é da Tarefa 13 e não foi feita aqui.</li>
+<li>Não li os 884 kB de <code>.superpowers/</code> por completo: usei <code>progress.md</code>,
+    <code>fix-t3-t9-report.md</code> e os <code>task-*-brief.md</code>.</li>
+</ul>
+
+<h3>Decisão de escopo</h3>
+<p>A causa raiz do SIGSEGV está identificada com gdb, mas <strong>não corrigida</strong> — o
+pacote foi "mapear", e o próximo passo acordado é o planejamento. Este relatório é o insumo dele.</p>
+
+</main>
+
+<footer>
+  Gerado com a skill <span class="mono">project-architecture-report</span> (gil-1/skills) ·
+  OpenCode · Big Pickle · 2026-10-19
+</footer>
+
+</body>
+</html>
