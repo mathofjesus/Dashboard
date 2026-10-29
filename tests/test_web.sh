@@ -49,7 +49,10 @@ confere() {
 }
 
 status() {
-    curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null || printf '000'
+    # Em falha de conexão o curl JÁ imprime 000 no -w e sai != 0; repetir o
+    # 000 aqui produzia "000000", que passava no teste `!= "000"` do laço de
+    # subida e fazia o script seguir antes de o servidor abrir a porta.
+    curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null || true
 }
 
 corpo() {

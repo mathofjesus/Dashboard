@@ -1,44 +1,62 @@
-CC      = gcc
-CFLAGS  = -std=c11 -Wall -Wextra -O2
-LDLIBS  = -lz
-
-SRC       = src/main.c src/http_server.c src/api.c src/model.c src/aggregate.c src/json.c src/cache.c src/charset.c src/zip.c src/csv.c src/fontes.c src/http_client.c src/geo.c
-OBJ       = $(SRC:.c=.o)
-TEST_SRC  = tests/test_main.c tests/test_http.c tests/test_json.c \
-            tests/test_cache.c tests/test_charset.c tests/test_zip.c tests/test_csv.c \
-            tests/test_fontes.c tests/test_model.c tests/test_aggregate.c tests/test_http_client.c tests/test_api.c tests/test_geo.c tests/test_saude.c \
-            src/http_server.c src/json.c src/cache.c src/charset.c src/zip.c src/csv.c \
-            src/fontes.c src/model.c src/aggregate.c src/http_client.c src/api.c src/geo.c \
-            src/dataset_saude.c
-TEST_HDR  = src/http_server.h src/json.h src/cache.h src/charset.h src/zip.h src/csv.h \
-            src/fontes.h src/model.h src/aggregate.h src/http_client.h src/api.h src/geo.h \
-            src/dataset_saude.h
-TEST_BIN  = tests/test_bin
-
-all: dashboard
-
-dashboard: $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LDLIBS)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-test: $(TEST_BIN) dashboard web/test-web
-	./$(TEST_BIN)
-	$(NODE) tests/test_web.mjs
-	$(NODE) tests/test_map.js
-	sh tests/test_web.sh
-
-# A suíte de rede fica no mesmo binário, mas só roda com --rede: assim `make test` não depende de internet e `make test-rede` baixa a API do IBGE.
-test-rede: $(TEST_BIN)
-	./$(TEST_BIN) --rede
-
-# O front não tem build step (é ES modules servido como estático), então só há o
-# que verificar: sintaxe de cada módulo e o porte de node antes do teste.
+# Makefile — build e suítes do dashboard (backend Java + front sem build).
 #
-# `node` nem sempre está no PATH — no Debian ele costuma vir só de um gerenciador
-# de versões instalado pelo usuário. Sem isto, `make test` morria em
-# "node: not found" depois de a suíte C já ter passado, o que é o pior lugar
+# O contrato de fora é o mesmo de antes da migração: `make` deixa `./dashboard`
+# pronto para uso e `make test` não depende de rede. O que mudou é o que roda
+# por baixo: Maven no lugar do gcc, e as suítes C foram substituídas pelos
+# testes JUnit equivalentes.
+
+JAVA ?= java
+MVN  ?= mvn
+JAR   = java/target/dashboard.jar
+FONTES_JAVA = $(shell find java/src -type f -name '*.java' 2>/dev/null) \
+              java/pom.xml
+
+# O primeiro alvo do arquivo é checa-ambiente (para rodar antes de tudo), mas o
+# alvo padrão continua sendo all: `make` sem argumento tem de compilar.
+.DEFAULT_GOAL := all
+
+# O ambiente é verificado em TODA invocação de all/build/test — inclusive quando
+# o JAR já existe e nada seria recompilado. Antes, `make build` numa máquina sem
+# JDK/Maven dizia "Nada a ser feito" e o problema só aparecia no `java -jar`.
+# A checagem do Java usado pelo próprio Maven pega o caso de `java` ser 21 e
+# JAVA_HOME apontar para um JDK antigo.
+checa-ambiente:
+	@falha() { printf 'make: %s\n' "$$*" >&2; exit 1; }; \
+	command -v "$(JAVA)" >/dev/null 2>&1 || \
+	    falha "java não encontrado — instale um JDK 21+ ou defina JAVA=/caminho/para/java"; \
+	v=$$("$(JAVA)" -version 2>&1 | awk -F'"' '/version/ {print $$2; exit}'); \
+	major=$${v%%.*}; \
+	if [ "$$major" = "1" ]; then major=$$(printf '%s' "$$v" | cut -d. -f2); fi; \
+	case "$$major" in \
+	    ''|*[!0-9]*) falha "não consegui determinar a versão do Java (saída: $${v:-vazia})" ;; \
+	esac; \
+	[ "$$major" -ge 21 ] || \
+	    falha "é preciso Java 21+ (encontrado: $$v) — confira JAVA/JAVA_HOME"; \
+	command -v "$(MVN)" >/dev/null 2>&1 || \
+	    falha "maven não encontrado — instale Maven 3.9+ ou defina MVN=/caminho/para/mvn"; \
+	saida=$$("$(MVN)" -v 2>&1) || falha "falha ao executar '$(MVN) -v': $$saida"; \
+	v=$$(printf '%s\n' "$$saida" | sed -n 's/^Java version: \([0-9][^, ]*\).*/\1/p' | head -1); \
+	major=$${v%%.*}; \
+	if [ "$$major" = "1" ]; then major=$$(printf '%s' "$$v" | cut -d. -f2); fi; \
+	case "$$major" in \
+	    ''|*[!0-9]*) falha "não consegui ler o Java usado pelo Maven ('$(MVN) -v')" ;; \
+	esac; \
+	[ "$$major" -ge 21 ] || \
+	    falha "o Maven está usando Java $$v; é preciso Java 21+ (confira JAVA_HOME)"
+
+all: checa-ambiente $(JAR)
+
+$(JAR): $(FONTES_JAVA)
+	$(MVN) -q -f java/pom.xml -DskipTests package
+
+build: all
+
+# O front não tem build step (é ES modules servido como estático), então só há
+# o que verificar: sintaxe de cada módulo e o porte de node antes do teste.
+#
+# `node` nem sempre está no PATH — no Debian ele costuma vir só de um
+# gerenciador de versões instalado pelo usuário. Sem isto, `make test` morria em
+# "node: not found" depois de a suíte já ter passado, o que é o pior lugar
 # para descobrir que falta um interpretador. A ordem de busca é: o NODE do
 # ambiente, o PATH, e então o node do próprio Hermes. `command -v` em vez de
 # `which` porque `which` não é padrão em POSIX e aqui é o /bin/sh do dash.
@@ -52,10 +70,16 @@ web/test-web:
 	@for m in web/*.js; do $(NODE) --check "$$m" || exit 1; done
 	@echo "sintaxe ok: $$(ls web/*.js | tr '\n' ' ')"
 
-$(TEST_BIN): $(TEST_SRC) $(TEST_HDR)
-	$(CC) $(CFLAGS) -o $@ $(TEST_SRC) $(LDLIBS)
+test: checa-ambiente $(JAR) web/test-web
+	$(MVN) -q -f java/pom.xml test
+	$(NODE) tests/test_web.mjs
+	$(NODE) tests/test_map.js
+	sh tests/test_web.sh
 
+# `make clean` não passa pelo Maven de propósito: precisa funcionar justamente
+# quando o ambiente está quebrado ou pela metade. java/target é o único diretório
+# que o build cria.
 clean:
-	rm -f $(OBJ) $(TEST_BIN) dashboard src/*.o
+	rm -rf java/target
 
-.PHONY: all test test-rede clean
+.PHONY: all build test clean web/test-web checa-ambiente

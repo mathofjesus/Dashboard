@@ -1,6 +1,5 @@
 data/cache/
 data/processed/
-*.o
-dashboard
-tests/test_bin
+java/target/
+*.class
 .superpowers/

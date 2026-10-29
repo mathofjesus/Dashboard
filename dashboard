@@ -1,0 +1,42 @@
+#!/bin/sh
+# dashboard — entrada do servidor e da ingestão (migração Java).
+#
+# O contrato é o mesmo do binário C: rodar da raiz do projeto, com data/,
+# web/ e fontes.conf relativos ao diretório de execução. Este script só
+# localiza o JAR ao lado dele e repassa os argumentos; toda a decisão de CLI
+# fica em br.gov.dashboard.DashboardApplication.
+set -eu
+
+RAIZ=$(CDPATH= cd "$(dirname "$0")" && pwd)
+JAR="$RAIZ/java/target/dashboard.jar"
+JAVA=${JAVA:-java}
+
+if [ ! -f "$JAR" ]; then
+    printf 'dashboard: %s não existe — rode make\n' "$JAR" >&2
+    exit 1
+fi
+
+# Falha aqui, e não no exec, quando o JDK não existe ou é antigo. `make` faz a
+# mesma checagem; repetir no wrapper cobre quem só executa o JAR já compilado.
+if ! command -v "$JAVA" >/dev/null 2>&1; then
+    printf 'dashboard: java não encontrado — instale um JDK 21+ ou defina JAVA=/caminho/para/java\n' >&2
+    exit 1
+fi
+
+VERSAO=$("$JAVA" -version 2>&1 | awk -F'"' '/version/ {print $2; exit}')
+MAJOR=${VERSAO%%.*}
+if [ "$MAJOR" = "1" ]; then
+    MAJOR=$(printf '%s' "$VERSAO" | cut -d. -f2)
+fi
+case "$MAJOR" in
+    ''|*[!0-9]*)
+        printf 'dashboard: não consegui determinar a versão do Java (saída: %s)\n' "${VERSAO:-vazia}" >&2
+        exit 1
+        ;;
+esac
+if [ "$MAJOR" -lt 21 ]; then
+    printf 'dashboard: é preciso Java 21+ (encontrado: %s) — confira JAVA/JAVA_HOME\n' "$VERSAO" >&2
+    exit 1
+fi
+
+exec "$JAVA" -jar "$JAR" "$@"

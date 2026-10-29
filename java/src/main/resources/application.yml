@@ -1,0 +1,29 @@
+server:
+  address: 127.0.0.1
+  port: 8080
+  compression:
+    enabled: true
+    min-response-size: 0
+    mime-types: application/json,application/geo+json,text/html,text/css,text/plain,text/javascript,application/javascript
+
+spring:
+  application:
+    name: dashboard
+  main:
+    banner-mode: off
+  web:
+    resources:
+      add-mappings: false
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+logging:
+  level:
+    root: INFO
+    br.gov.dashboard: INFO
+
+dashboard:
+  data-dir: data
+  web-root: web
